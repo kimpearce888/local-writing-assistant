@@ -1,0 +1,24 @@
+{
+  "name": "local-writing-assistant",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Fully local AI writing assistant — Chrome extension + native host + Windows installer.",
+  "scripts": {
+    "build:extension": "cd extension && npm run build",
+    "build:native": "cd native-host && GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -ldflags='-s -w' -o build/LocalWritingAssistantHost.exe ./cmd/localwritingassistanthost",
+    "build:native:linux": "cd native-host && CGO_ENABLED=0 go build -ldflags='-s -w' -o build/LocalWritingAssistantHost ./cmd/localwritingassistanthost",
+    "test:extension": "cd extension && npm run test",
+    "test:native": "cd native-host && go test ./...",
+    "test:integration": "cd tests && go test -v ./...",
+    "test": "npm run test:native && npm run test:integration && npx vitest run",
+    "typecheck": "cd extension && npm run typecheck",
+    "package": "node scripts/package.cjs",
+    "audit:network": "node scripts/network-audit.cjs",
+    "audit:security": "node scripts/security-audit.cjs"
+  },
+  "devDependencies": {
+    "jsdom": "^25.0.1",
+    "vitest": "^2.1.6"
+  }
+}

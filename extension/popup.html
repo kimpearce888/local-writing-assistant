@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Local Writing Assistant</title>
+  <link rel="stylesheet" href="src/popup/popup.css" />
+</head>
+<body data-theme="auto">
+  <header class="header">
+    <div class="title" id="popupTitle">Writing Assistant</div>
+    <label class="switch">
+      <input type="checkbox" id="enabledToggle" />
+      <span class="slider"></span>
+    </label>
+  </header>
+  <main>
+    <div class="card">
+      <div class="row">
+        <span class="label">LM Studio</span>
+        <span class="value" id="connStatus">○ Not connected</span>
+      </div>
+      <div class="row">
+        <span class="label">Model</span>
+        <span class="value" id="modelValue">—</span>
+      </div>
+      <div class="row">
+        <span class="label">Suggestions</span>
+        <span class="value" id="suggestionsValue">0</span>
+      </div>
+    </div>
+    <div class="actions">
+      <button id="testBtn" class="btn">Test LM Studio Connection</button>
+      <button id="settingsBtn" class="btn">Settings</button>
+      <button id="diagBtn" class="btn">Open diagnostics</button>
+    </div>
+    <div class="site-actions">
+      <button id="enableSiteBtn" class="btn small">Enable on this site</button>
+      <button id="disableSiteBtn" class="btn small">Disable on this site</button>
+      <button id="pauseSiteBtn" class="btn small">Pause until next page reload</button>
+    </div>
+    <p id="diagLine" class="diag-line" hidden></p>
+  </main>
+  <script type="module" src="src/popup/index.ts"></script>
+</body>
+</html>

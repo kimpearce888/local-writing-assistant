@@ -1,0 +1,20 @@
+/* Content-script styles. Scoped with [data-lwa-*] attributes so we
+   cannot accidentally break host pages. */
+
+[data-lwa-highlight] {
+  all: initial;
+  pointer-events: none;
+}
+
+[data-lwa-highlight][data-lwa-highlight="marker"] {
+  pointer-events: auto;
+}
+
+[data-lwa-popup] {
+  all: initial;
+}
+
+[data-lwa-popup] button {
+  all: unset;
+  cursor: pointer;
+}

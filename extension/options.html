@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Local Writing Assistant — Settings</title>
+  <link rel="stylesheet" href="src/options/options.css" />
+</head>
+<body data-theme="auto">
+  <header>
+    <h1>Local Writing Assistant — Settings</h1>
+  </header>
+  <main>
+    <section class="card">
+      <h2>Privacy</h2>
+      <p class="notice">All AI processing is performed through LM Studio on this computer. No cloud service is used by this extension.</p>
+    </section>
+    <section class="card">
+      <h2>General</h2>
+      <label class="row"><input type="checkbox" id="enabled" /> Enable writing assistant</label>
+      <label class="row"><input type="checkbox" id="autoCheck" /> Automatically check writing</label>
+      <label class="row"><input type="checkbox" id="inlineSuggestions" /> Show inline suggestions</label>
+      <label class="row"><input type="checkbox" id="checkSpelling" /> Check spelling</label>
+      <label class="row"><input type="checkbox" id="checkGrammar" /> Check grammar</label>
+      <label class="row"><input type="checkbox" id="checkPunctuation" /> Check punctuation</label>
+      <label class="row"><input type="checkbox" id="checkClarity" /> Check clarity</label>
+      <label class="row"><input type="checkbox" id="checkWordChoice" /> Check word choice</label>
+    </section>
+    <section class="card">
+      <h2>Tone</h2>
+      <select id="tone">
+        <option value="neutral">Neutral</option>
+        <option value="professional">Professional</option>
+        <option value="friendly">Friendly</option>
+        <option value="formal">Formal</option>
+        <option value="casual">Casual</option>
+        <option value="concise">Concise</option>
+        <option value="confident">Confident</option>
+      </select>
+    </section>
+    <section class="card">
+      <h2>Performance</h2>
+      <label>Debounce delay (ms) <input type="number" id="debounceMs" min="200" max="5000" step="50" /></label>
+      <label>Context length (chars) <input type="number" id="contextLength" min="100" max="4000" step="50" /></label>
+      <label>Maximum text size per request (chars) <input type="number" id="maxTextSize" min="500" max="20000" step="100" /></label>
+      <label>Maximum concurrent requests <input type="number" id="maxConcurrent" min="1" max="4" step="1" /></label>
+      <label>Minimum confidence (0.0–1.0) <input type="number" id="minConfidence" min="0" max="1" step="0.05" /></label>
+    </section>
+    <section class="card">
+      <h2>LM Studio</h2>
+      <label>Server URL <input type="text" id="lmStudioUrl" /></label>
+      <label>Model
+        <select id="model"><option value="">(refresh models first)</option></select>
+        <button id="refreshModels">Refresh models</button>
+      </label>
+      <label>Temperature <input type="number" id="temperature" min="0" max="2" step="0.05" /></label>
+      <label>Max tokens <input type="number" id="maxTokens" min="64" max="8192" step="64" /></label>
+      <label>Request timeout (ms) <input type="number" id="requestTimeoutMs" min="1000" max="120000" step="1000" /></label>
+      <button id="testConnection">Test LM Studio Connection</button>
+      <p id="connStatus" class="notice" hidden></p>
+    </section>
+    <section class="card">
+      <h2>Custom dictionary</h2>
+      <div class="dict-row">
+        <input type="text" id="newWord" placeholder="word to add" />
+        <button id="addWord">Add word</button>
+        <button id="importDict">Import dictionary</button>
+        <button id="exportDict">Export dictionary</button>
+        <button id="clearDict">Clear dictionary</button>
+      </div>
+      <ul id="dictList" class="dict-list"></ul>
+    </section>
+    <section class="card">
+      <h2>Site exclusions</h2>
+      <div class="dict-row">
+        <input type="text" id="newExclusion" placeholder="example.com" />
+        <button id="addExclusion">Add</button>
+      </div>
+      <ul id="exclusionList" class="dict-list"></ul>
+    </section>
+    <section class="card">
+      <h2>Settings backup</h2>
+      <div class="dict-row">
+        <button id="exportSettings">Export settings</button>
+        <button id="importSettings">Import settings</button>
+        <button id="resetSettings">Reset settings</button>
+      </div>
+    </section>
+    <section class="card" id="diagnosticsCard">
+      <h2>Diagnostics</h2>
+      <button id="runDiag">Run diagnostics</button>
+      <button id="clearDiag">Clear diagnostics</button>
+      <pre id="diagOutput" class="diag-output"></pre>
+    </section>
+  </main>
+  <input type="file" id="fileInput" hidden />
+  <script type="module" src="src/options/index.ts"></script>
+</body>
+</html>

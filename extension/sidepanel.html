@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Rewrite — Local Writing Assistant</title>
+  <link rel="stylesheet" href="src/sidepanel/sidepanel.css" />
+</head>
+<body data-theme="auto">
+  <header>
+    <h1>Rewrite</h1>
+  </header>
+  <main>
+    <section class="actions">
+      <button data-op="improve">Improve writing</button>
+      <button data-op="shorter">Make shorter</button>
+      <button data-op="clearer">Make clearer</button>
+      <button data-op="professional">Make professional</button>
+      <button data-op="friendly">Make friendly</button>
+      <button data-op="formal">Make formal</button>
+      <button data-op="simplify">Simplify</button>
+    </section>
+    <section>
+      <h2>Selected text</h2>
+      <textarea id="selectedText" rows="6" readonly></textarea>
+    </section>
+    <section>
+      <h2>Custom instruction</h2>
+      <input type="text" id="customInstruction" placeholder="e.g. Rewrite this to sound polite but direct." />
+      <button id="runCustom">Run</button>
+    </section>
+    <section>
+      <h2>Result</h2>
+      <textarea id="resultText" rows="8"></textarea>
+      <div class="result-actions">
+        <button id="replaceBtn" class="primary">Replace</button>
+        <button id="copyBtn">Copy</button>
+      </div>
+    </section>
+    <p id="errorLine" class="error" hidden></p>
+  </main>
+  <script type="module" src="src/sidepanel/index.ts"></script>
+</body>
+</html>
