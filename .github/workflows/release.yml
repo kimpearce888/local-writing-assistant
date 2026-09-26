@@ -98,7 +98,7 @@ jobs:
       # ---- Publish ----
       - name: Create or update GitHub Release
         id: release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.tag.outputs.name }}
           name: "Local Writing Assistant ${{ steps.tag.outputs.name }}"
