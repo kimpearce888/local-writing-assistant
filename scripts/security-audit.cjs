@@ -65,6 +65,9 @@ function scan(file, ext) {
   for (const { name, regex, exts } of FORBIDDEN) {
     if (!exts.includes(ext)) continue;
     if (isTest && (name.includes("exec.Command") || name.includes("os/exec"))) continue;
+    // Skip .md files entirely for API-key patterns — docs legitimately
+    // enumerate the forbidden names ("there must be no OPENAI_API_KEY").
+    if (file.endsWith(".md") && /API_KEY|ACCESS_KEY/.test(name)) continue;
     regex.lastIndex = 0;
     let m;
     while ((m = regex.exec(text))) {
