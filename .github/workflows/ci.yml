@@ -86,7 +86,6 @@ jobs:
         with:
           go-version: "1.23"
           cache: true
-          cache-dependency-path: native-host/go.sum
 
       - name: go vet
         run: go vet ./...
@@ -118,7 +117,6 @@ jobs:
         with:
           go-version: "1.23"
           cache: true
-          cache-dependency-path: native-host/go.sum
 
       - name: Integration tests (build host + exercise wire protocol)
         run: go test -v ./...
@@ -138,7 +136,6 @@ jobs:
         with:
           go-version: "1.23"
           cache: true
-          cache-dependency-path: native-host/go.sum
 
       - name: Build windows/amd64
         env:

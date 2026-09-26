@@ -20,8 +20,8 @@ import (
 	"os"
 	"time"
 
-	"localwritingassistant.host/internal/logging"
 	"localwritingassistant.host/internal/lmstudio"
+	"localwritingassistant.host/internal/logging"
 	"localwritingassistant.host/internal/protocol"
 	"localwritingassistant.host/internal/security"
 )
@@ -116,13 +116,13 @@ func handleCheckConnection(req *protocol.Request, rid string, cfg HostConfig, ou
 	}
 	// We always do the full check; the lightweight flag is informational only.
 	result := map[string]any{
-		"nativeHost":          true,
-		"lmStudioReachable":   false,
-		"modelsEndpointOk":    false,
-		"atLeastOneModel":     false,
-		"testRequestOk":       false,
-		"models":              []any{},
-		"message":             "",
+		"nativeHost":        true,
+		"lmStudioReachable": false,
+		"modelsEndpointOk":  false,
+		"atLeastOneModel":   false,
+		"testRequestOk":     false,
+		"models":            []any{},
+		"message":           "",
 	}
 	client, err := lmstudio.New(cfg.BaseURL, cfg.Token)
 	if err != nil {

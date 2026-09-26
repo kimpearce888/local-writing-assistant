@@ -18,11 +18,11 @@ func TestSanitizeLMStudioURL_Allows(t *testing.T) {
 
 func TestSanitizeLMStudioURL_Rejects(t *testing.T) {
 	cases := []string{
-		"http://192.168.1.5:1234",   // LAN
-		"http://10.0.0.1:1234",      // private network
-		"http://example.com:1234",   // public host
-		"http://0.0.0.0:1234",       // wildcard
-		"ftp://127.0.0.1:1234",      // non-http scheme
+		"http://192.168.1.5:1234",         // LAN
+		"http://10.0.0.1:1234",            // private network
+		"http://example.com:1234",         // public host
+		"http://0.0.0.0:1234",             // wildcard
+		"ftp://127.0.0.1:1234",            // non-http scheme
 		"http://user:pass@127.0.0.1:1234", // userinfo
 		"",
 	}

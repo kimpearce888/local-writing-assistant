@@ -41,7 +41,6 @@ jobs:
         with:
           go-version: "1.23"
           cache: true
-          cache-dependency-path: native-host/go.sum
 
       - name: Resolve tag
         id: tag
