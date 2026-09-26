@@ -20,9 +20,6 @@ jobs:
   extension:
     name: Extension (typecheck + tests + audits)
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: extension
     steps:
       - uses: actions/checkout@v4
 
@@ -31,31 +28,40 @@ jobs:
         with:
           node-version: "20"
           cache: npm
-          cache-dependency-path: extension/package-lock.json
+          cache-dependency-path: |
+            package-lock.json
+            extension/package-lock.json
 
-      - name: Install dependencies
+      - name: Install root dependencies (vitest, jsdom)
+        run: npm install --no-audit --no-fund
+
+      - name: Install extension dependencies
+        working-directory: extension
         run: npm install --no-audit --no-fund
 
       - name: Type-check
+        working-directory: extension
         run: npm run typecheck
 
       - name: Run Vitest unit tests
         run: npx vitest run --reporter=verbose
-        working-directory: .
 
       - name: Static network audit (spec section 92)
-        run: node ../scripts/network-audit.cjs
+        run: node scripts/network-audit.cjs
 
       - name: Static security audit (spec section 93)
-        run: node ../scripts/security-audit.cjs
+        run: node scripts/security-audit.cjs
 
       - name: Build extension
+        working-directory: extension
         run: npm run build
 
       - name: Verify manifest.json is valid JSON
+        working-directory: extension
         run: jq . dist/manifest.json > /dev/null
 
       - name: Verify dist contains all expected entry points
+        working-directory: extension
         run: |
           for f in manifest.json background.js content.js popup.js sidepanel.js options.js popup.html sidepanel.html options.html content.css; do
             if [ ! -f "dist/$f" ]; then
