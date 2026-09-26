@@ -1,0 +1,34 @@
+# CODEOWNERS
+#
+# GitHub will automatically request review from these owners for any PR
+# that touches files under the matching path.
+#
+# Update the @username below to the maintainer who should own each area.
+
+# Default owner for anything not matched below.
+*                        @kimpearce888
+
+# Chrome extension source — owned by the extension maintainer.
+/extension/              @kimpearce888
+/extension/src/          @kimpearce888
+/extension/public/       @kimpearce888
+
+# Go native messaging host — owned by the native host maintainer.
+/native-host/            @kimpearce888
+/native-host/cmd/        @kimpearce888
+/native-host/internal/   @kimpearce888
+
+# Windows installer scripts.
+/installer/               @kimpearce888
+
+# CI / build / packaging — any change here should be reviewed carefully
+# because it can affect every release.
+/.github/                 @kimpearce888
+/scripts/                 @kimpearce888
+/packaging/               @kimpearce888
+
+# Documentation.
+/README.md               @kimpearce888
+/PRIVACY.md              @kimpearce888
+/SECURITY.md             @kimpearce888
+/DEVELOPMENT.md          @kimpearce888

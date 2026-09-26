@@ -1,0 +1,39 @@
+# EditorConfig — https://editorconfig.org
+#
+# Keeps editor behavior consistent across editors / IDEs / contributors.
+
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+indent_style = space
+indent_size = 2
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+# Go files: tabs, per `gofmt`.
+[*.go]
+indent_style = tab
+indent_size = 4
+
+# Markdown: don't trim trailing whitespace (Markdown uses two trailing
+# spaces to mean "hard line break").
+[*.md]
+trim_trailing_whitespace = false
+
+# Makefiles require tabs.
+[Makefile]
+indent_style = tab
+
+# YAML (GitHub Actions, Dependabot, issue templates): 2 spaces.
+[*.{yml,yaml}]
+indent_size = 2
+
+# PowerShell: 4 spaces (matches the existing installer scripts).
+[*.ps1]
+indent_size = 4
+
+# Batch files: keep CRLF (Windows-native).
+[*.bat]
+end_of_line = crlf

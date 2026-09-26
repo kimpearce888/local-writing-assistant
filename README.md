@@ -1,10 +1,19 @@
 # Local Writing Assistant
 
+[![CI](https://github.com/kimpearce888/local-writing-assistant/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/kimpearce888/local-writing-assistant/actions/workflows/ci.yml)
+[![Release](https://github.com/kimpearce888/local-writing-assistant/actions/workflows/release.yml/badge.svg)](https://github.com/kimpearce888/local-writing-assistant/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/kimpearce888/local-writing-assistant/blob/main/LICENSE)
+[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/kimpearce888/local-writing-assistant/releases/tag/v1.0.0)
+[![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+[![No cloud](https://img.shields.io/badge/runtime-no%20cloud%20AI-1f6feb.svg)](PRIVACY.md)
+
 A **fully local** AI writing assistant for Chrome on Windows, powered by [LM Studio](https://lmstudio.ai).
 
 The user's text never leaves the user's computer. There is no cloud AI, no telemetry, no analytics, no account, no login, no remote backend. The only AI engine is LM Studio running locally on the same PC.
 
 This is **not** a Grammarly clone — it is an original local-first writing assistant with its own UI, prompts, and architecture.
+
+> **Download the latest Windows package:** see the [Releases page](https://github.com/kimpearce888/local-writing-assistant/releases).
 
 ---
 
@@ -201,6 +210,14 @@ If any FAIL appears, run `Install.bat` again — it is idempotent and will repai
 
 ---
 
+## Contributing
+
+Pull requests are welcome. Please read [`CONTRIBUTING.md`](CONTRIBUTING.md) first — every change must keep the assistant fully local (no cloud, no telemetry, no remote backend). See [`CHANGELOG.md`](CHANGELOG.md) for version history.
+
+To report a security vulnerability, please follow the [security policy](https://github.com/kimpearce888/local-writing-assistant/security/policy) — do **not** open a public issue.
+
+---
+
 ## License
 
-This project is released under the MIT License. See `LICENSE` (if present) or the source files for details.
+This project is released under the MIT License. See [`LICENSE`](LICENSE) for details.

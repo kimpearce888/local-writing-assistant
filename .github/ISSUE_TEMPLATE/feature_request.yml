@@ -1,0 +1,49 @@
+name: Feature request
+description: Suggest a new feature or improvement.
+title: "[feature] "
+labels: ["enhancement", "triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+      description: Don't describe the solution yet — describe the pain point.
+      placeholder: "I'm trying to ... but the assistant currently ..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: What would you like the assistant to do?
+      description: Describe the behavior you want, ideally with a concrete example.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Which area does this touch?
+      options:
+        - Inline suggestions
+        - Rewrite / side panel
+        - Settings / options page
+        - Custom dictionary
+        - Site exclusions
+        - Native host (Go)
+        - Installer (PowerShell)
+        - Diagnostics
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy guardrail
+      options:
+        - label: This feature keeps all AI processing on the user's own machine (no cloud).
+          required: true
+        - label: This feature does not require telemetry, analytics, or any remote network call.
+          required: true

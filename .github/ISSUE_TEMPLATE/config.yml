@@ -1,0 +1,6 @@
+# Default issue template — for anything that isn't a bug or feature request
+blank_issues_enabled: true
+contact_links:
+  - name: Security vulnerability report
+    url: https://github.com/kimpearce888/local-writing-assistant/security/policy
+    about: Found a security issue? Please read the security policy instead of opening a public issue.

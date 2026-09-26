@@ -1,0 +1,139 @@
+name: Release
+
+# Triggered by pushing a tag like v1.2.3. Builds the Windows EXE, builds
+# the extension, assembles the final ZIP in the structure described in
+# spec section 80, and uploads it as a GitHub Release asset.
+#
+# No tokens are checked into the repo — this workflow uses the
+# automatically-provided GITHUB_TOKEN, which is scoped to the repo.
+
+on:
+  push:
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to publish (must already exist)"
+        required: true
+        type: string
+
+permissions:
+  contents: write  # needed to create the release + upload assets
+
+jobs:
+  build-and-release:
+    name: Build + publish Windows ZIP
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: extension/package-lock.json
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+          cache: true
+          cache-dependency-path: native-host/go.sum
+
+      - name: Resolve tag
+        id: tag
+        run: |
+          if [ -n "${{ inputs.tag }}" ]; then
+            echo "name=${{ inputs.tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "name=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          fi
+
+      # ---- Pre-flight checks ----
+      - name: Static network audit
+        run: node scripts/network-audit.cjs
+
+      - name: Static security audit
+        run: node scripts/security-audit.cjs
+
+      # ---- Build native host for Windows ----
+      - name: Build Windows native host
+        working-directory: native-host
+        env:
+          GOOS: windows
+          GOARCH: amd64
+          CGO_ENABLED: "0"
+        run: |
+          mkdir -p build
+          go build -ldflags="-s -w" -o build/LocalWritingAssistantHost.exe ./cmd/localwritingassistanthost
+          file build/LocalWritingAssistantHost.exe
+
+      # ---- Build extension ----
+      - name: Install extension deps
+        working-directory: extension
+        run: npm install --no-audit --no-fund
+
+      - name: Type-check extension
+        working-directory: extension
+        run: npm run typecheck
+
+      - name: Build extension
+        working-directory: extension
+        run: npm run build
+
+      # ---- Assemble the ZIP exactly as the manual packager does ----
+      - name: Package ZIP
+        run: node scripts/package.cjs
+
+      - name: Verify ZIP exists
+        run: |
+          ls -la dist/Local-Writing-Assistant-Windows.zip
+          test -f dist/Local-Writing-Assistant-Windows.zip
+          # Print top-level contents of the ZIP for the release log.
+          unzip -l dist/Local-Writing-Assistant-Windows.zip | head -20
+
+      # ---- Publish ----
+      - name: Create or update GitHub Release
+        id: release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.name }}
+          name: "Local Writing Assistant ${{ steps.tag.outputs.name }}"
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+          files: |
+            dist/Local-Writing-Assistant-Windows.zip
+          body: |
+            ## Download
+
+            **[Local-Writing-Assistant-Windows.zip](https://github.com/${{ github.repository }}/releases/download/${{ steps.tag.outputs.name }}/Local-Writing-Assistant-Windows.zip)
+
+            ## Quick start
+
+            1. Download and extract `Local-Writing-Assistant-Windows.zip`.
+            2. Double-click `Install.bat`.
+            3. Open LM Studio, load any chat-capable model, start the local server on port 1234.
+            4. Click the extension toolbar icon → **Test LM Studio Connection**.
+            5. Start writing in any `<textarea>`, supported `<input>`, or `contenteditable` editor.
+
+            ## What is this
+
+            A fully local AI writing assistant for Chrome on Windows, powered by LM Studio. No cloud, no telemetry, no remote backend, no account, no login. The user's text never leaves the user's computer.
+
+            The architecture is: WEB PAGE → content script → service worker → Chrome native messaging → standalone Go host EXE → `http://127.0.0.1:1234` → LM Studio → local LLM.
+
+            ## Build provenance
+
+            This release was built automatically by GitHub Actions from tag `${{ steps.tag.outputs.name }}`.
+            - Build commit: `${{ github.sha }}`
+            - Builder: GitHub-hosted Ubuntu runner
+            - All CI checks (typecheck, network audit, security audit, Go unit tests, integration tests, Windows cross-compile) passed before packaging.
+            - The ZIP's SHA-256 is printed in the build log.
+
+      - name: Print asset SHA-256
+        run: |
+          sha256sum dist/Local-Writing-Assistant-Windows.zip
