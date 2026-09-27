@@ -22,6 +22,7 @@ import (
 
 	"localwritingassistant.host/internal/lmstudio"
 	"localwritingassistant.host/internal/logging"
+	"localwritingassistant.host/internal/mock"
 	"localwritingassistant.host/internal/protocol"
 	"localwritingassistant.host/internal/security"
 )
@@ -65,22 +66,42 @@ func handleRequest(req *protocol.Request, cfg HostConfig, out io.Writer) {
 		writeErr(out, rid, "UNKNOWN_COMMAND", fmt.Sprintf("unknown command: %q", req.Command))
 		return
 	}
-	logging.Info("REQUEST_STARTED", fmt.Sprintf("cmd=%s rid=%s", req.Command, rid))
+	logging.Info("REQUEST_STARTED", fmt.Sprintf("cmd=%s rid=%s mock=%v", req.Command, rid, mock.Enabled()))
 	switch req.Command {
 	case "ping":
-		writeOK(out, rid, map[string]any{"ok": true, "version": hostVersion()})
+		writeOK(out, rid, map[string]any{"ok": true, "version": hostVersion(), "mock": mock.Enabled()})
 	case "get_config":
 		writeOK(out, rid, map[string]any{
 			"baseUrl": cfg.BaseURL,
 			"version": hostVersion(),
+			"mock":    mock.Enabled(),
 		})
 	case "get_models":
+		if mock.Enabled() {
+			writeOK(out, rid, map[string]any{"raw": mock.ModelsResponse(), "mock": true})
+			return
+		}
 		handleGetModels(req, rid, cfg, out)
 	case "check_connection":
+		if mock.Enabled() {
+			// Parse the mock JSON and pass through as data.
+			var data any
+			_ = json.Unmarshal([]byte(mock.CheckConnectionResponse()), &data)
+			writeOK(out, rid, data)
+			return
+		}
 		handleCheckConnection(req, rid, cfg, out)
 	case "grammar_check":
+		if mock.Enabled() {
+			handleGrammarCheckMock(req, rid, out)
+			return
+		}
 		handleGrammarCheck(req, rid, cfg, out)
 	case "rewrite":
+		if mock.Enabled() {
+			handleRewriteMock(req, rid, out)
+			return
+		}
 		handleRewrite(req, rid, cfg, out)
 	default:
 		writeErr(out, rid, "UNKNOWN_COMMAND", req.Command)
@@ -317,7 +338,7 @@ func writeErr(w io.Writer, rid, code, message string) {
 }
 
 func hostVersion() string {
-	return "1.0.0"
+	return "1.1.0"
 }
 
 // loadConfig reads the optional host-config.json next to the executable
@@ -355,4 +376,59 @@ func loadConfig() HostConfig {
 		}
 	}
 	return cfg
+}
+
+// handleGrammarCheckMock answers a grammar_check request using the
+// deterministic in-process mock instead of contacting LM Studio.
+// Used by automated tests (spec section 56).
+func handleGrammarCheckMock(req *protocol.Request, rid string, out io.Writer) {
+	var payload struct {
+		Text         string  `json:"text"`
+		SystemPrompt string  `json:"systemPrompt"`
+		Model        string  `json:"model"`
+		Temperature  float64 `json:"temperature"`
+		MaxTokens    int     `json:"maxTokens"`
+		TimeoutMs    int     `json:"timeoutMs"`
+	}
+	if err := json.Unmarshal(req.Payload, &payload); err != nil {
+		writeErr(out, rid, "INVALID_AI_RESPONSE", "malformed grammar_check payload")
+		return
+	}
+	if payload.Text == "" {
+		writeErr(out, rid, "INVALID_AI_RESPONSE", "empty text")
+		return
+	}
+	text, err := security.ClampText(payload.Text, security.MaxAnalyzeTextBytes)
+	if err != nil {
+		writeErr(out, rid, "REQUEST_TOO_LARGE", err.Error())
+		return
+	}
+	writeOK(out, rid, map[string]any{"raw": mock.GrammarResponse(text), "mock": true})
+}
+
+// handleRewriteMock answers a rewrite request using the deterministic
+// in-process mock. Used by automated tests (spec section 56).
+func handleRewriteMock(req *protocol.Request, rid string, out io.Writer) {
+	var payload struct {
+		Text         string  `json:"text"`
+		SystemPrompt string  `json:"systemPrompt"`
+		Model        string  `json:"model"`
+		Temperature  float64 `json:"temperature"`
+		MaxTokens    int     `json:"maxTokens"`
+		TimeoutMs    int     `json:"timeoutMs"`
+	}
+	if err := json.Unmarshal(req.Payload, &payload); err != nil {
+		writeErr(out, rid, "INVALID_AI_RESPONSE", "malformed rewrite payload")
+		return
+	}
+	if payload.Text == "" {
+		writeErr(out, rid, "INVALID_AI_RESPONSE", "empty text")
+		return
+	}
+	text, err := security.ClampText(payload.Text, security.MaxRewriteTextBytes)
+	if err != nil {
+		writeErr(out, rid, "REQUEST_TOO_LARGE", err.Error())
+		return
+	}
+	writeOK(out, rid, map[string]any{"raw": mock.RewriteResponse(text), "mock": true})
 }

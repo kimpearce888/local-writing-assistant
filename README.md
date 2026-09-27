@@ -1,9 +1,10 @@
 # Local Writing Assistant
 
 [![CI](https://github.com/kimpearce888/local-writing-assistant/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/kimpearce888/local-writing-assistant/actions/workflows/ci.yml)
+[![E2E](https://img.shields.io/badge/E2E-7%2F7%20passing-brightgreen.svg)](#testing)
 [![Release](https://github.com/kimpearce888/local-writing-assistant/actions/workflows/release.yml/badge.svg)](https://github.com/kimpearce888/local-writing-assistant/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/kimpearce888/local-writing-assistant/blob/main/LICENSE)
-[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/kimpearce888/local-writing-assistant/releases/tag/v1.0.0)
+[![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)](https://github.com/kimpearce888/local-writing-assistant/releases/tag/v1.1.0)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 [![No cloud](https://img.shields.io/badge/runtime-no%20cloud%20AI-1f6feb.svg)](PRIVACY.md)
 
@@ -207,6 +208,30 @@ Run `Diagnose.bat` from the extracted folder. It prints a PASS/WARN/FAIL report 
 * Available models
 
 If any FAIL appears, run `Install.bat` again — it is idempotent and will repair the installation.
+
+---
+
+## Testing
+
+The project has four test suites, all running on every push/PR via GitHub Actions:
+
+| Suite | What it covers | Count |
+|-------|----------------|-------|
+| Vitest unit tests | AI output parser, text utilities, stale-result protection, sensitive-field detection, prompt builders | 37 |
+| Go unit tests | Native-messaging protocol, security URL/command allowlists, payload clamps | 4 |
+| Go integration tests | Full wire-protocol round-trip against the built host binary, including mock-AI mode | 9 |
+| Playwright E2E tests | Real Chrome with the extension loaded + mock AI — textarea detection, contenteditable detection, suggestion popup, Replace button, password-field skipping, prompt-injection safety | 7 |
+
+Run them locally:
+
+```bash
+npm run test:native        # Go unit tests
+npm run test:integration   # Go integration tests (wire protocol)
+npx vitest run            # Vitest unit tests
+npm run test:e2e           # Playwright E2E (requires xvfb on Linux)
+```
+
+The E2E suite uses `LOCAL_MOCK_AI=true` (spec §56) so it runs without a real LM Studio — the native host returns deterministic canned responses that match the input text. This makes the tests fully reproducible in CI.
 
 ---
 

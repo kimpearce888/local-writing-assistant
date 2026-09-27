@@ -8,6 +8,60 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 _No unreleased changes yet._
 
+## [1.1.0] — 2026-09-27
+
+### Added
+
+- **Real extension signing** (spec §50, §81). Generated an RSA 2048-bit keypair (`scripts/generate-keypair.sh`), embedded the public key in `extension/public/manifest.json` under the `"key"` field, and computed the resulting stable Chrome extension ID (`lclfegmpnhibpkijgmlpjaoemnjpabcp`). The private key lives in `.keys/extension.pem` (gitignored) and is never shipped in the installer package.
+
+- **CRX3 packager** (`scripts/build-crx.cjs`). Produces a signed `extension.crx` from `extension/dist` + `.keys/extension.pem`. The CRX3 format is hand-encoded (no protobuf dependency) — magic + version + length-prefixed CrxFileHeader + ZIP. Verified with `file(1)` as "Google Chrome extension, version 3".
+
+- **Mock AI mode** (spec §56). Set `LOCAL_MOCK_AI=true` when launching the native host to get deterministic, in-process canned responses instead of contacting LM Studio. Used by the E2E tests so they run in CI without a real local model. Three new Go integration tests cover mock-mode grammar_check, check_connection, and get_models.
+
+- **Playwright E2E browser tests** (spec §58, §60, §61). Seven tests that load the real Chrome extension into a real Chromium via `chromium.launchPersistentContext`, register the native host into the user-data-dir's `NativeMessagingHosts/` folder, set `LOCAL_MOCK_AI=true`, and exercise:
+  - Popup status shows "Connected" when mock AI is on
+  - Textarea is detected and the mock issue ("don't" → "doesn't") appears as a marker
+  - Contenteditable is detected and the same issue appears
+  - Replace button applies the suggestion (textarea value becomes "She doesn't like it.")
+  - Password field is never analyzed
+  - Prompt-injection text in the editor cannot trigger shell exec
+  - Ignore button removes the suggestion without modifying text
+
+- **Polished icons** (`scripts/generate-icons.cjs`). Replaced the hand-rolled pixel-loop PNGs with an SVG design (rounded gradient square with a stylized "L" + quill/caret detail) rendered to 16/32/48/128 PNGs via Playwright's Chromium. The SVG source is also committed at `extension/public/icons/icon.svg` for future re-rendering.
+
+- **Inno Setup script** (`installer/LocalWritingAssistant.iss`). A polished Windows installer script that wraps the existing `install.ps1`. Adds the extension to Add/Remove Programs, provides a graphical wizard, supports `/SILENT` for unattended install, and integrates with Windows Settings' uninstall flow. Optional — the bare `Install.bat` / `install.ps1` installer still works without Inno Setup.
+
+- **GitHub Pages workflow** (`.github/workflows/pages.yml`). Publishes the signed CRX3 + `update.xml` to GitHub Pages so Mode A enterprises can configure `ExtensionInstallForcelist` to point at `https://kimpearce888.github.io/local-writing-assistant/update.xml`. Requires the maintainer to add the `CRX_SIGNING_KEY` repository secret (base64-encoded PEM).
+
+- **CI now runs Playwright E2E**. The CI workflow gained a new `e2e` job that installs Playwright Chromium + xvfb, builds the extension (two-pass: SW + IIFE content.js), builds the native host for Linux, and runs `xvfb-run npx playwright test`. Traces are uploaded as artifacts on failure.
+
+- **Release workflow builds signed CRX**. When the `CRX_SIGNING_KEY` secret is configured, `release.yml` now also produces a signed `Local-Writing-Assistant-Windows.crx` and attaches it to the GitHub Release alongside the ZIP. The SHA-256 of the CRX is also uploaded for build provenance.
+
+- **Two-pass Vite build**. Content script is now built as an IIFE (`vite build --mode content`) instead of an ES module — Chrome MV3 content scripts cannot use ES module imports. The service worker is still built as a module (manifest declares `type: "module"`). This was caught by the E2E tests (the original module-based content.js failed to load with "Cannot use import statement outside a module").
+
+- **Native-bridge relay through service worker**. Content scripts cannot call `chrome.runtime.connectNative` directly — only the service worker can. The content script's suggestion engine now sends a `runtime.sendMessage({type:"native-bridge-call", ...})` to the SW, which calls `sendNative()` and returns the host response. This fixes the architectural bug that was blocking the E2E tests.
+
+- **Stale-result hash consistency fix**. The content script's `onIssueMarkerClick` and `handleReplace` functions were computing the hash differently from the suggestion engine — `hashText(getText())` vs. `hashText(normalizeText(text) + "|" + tone + "|" + model)`. This caused every popup to falsely show as "stale". Now both paths use the same hash function.
+
+- **Installer uses real extension ID**. The `Get-StableExtensionId` function in `install.ps1` previously derived a fake ID from a fixed seed string. It now uses the real RSA-derived ID `lclfegmpnhibpkijgmlpjaoemnjpabcp`, hardcoded as a constant. Mode A force-install entries now reference the ID Chrome will actually recognize.
+
+- **New scripts**: `scripts/generate-keypair.sh`, `scripts/embed-public-key.sh`, `scripts/build-crx.cjs`, `scripts/generate-icons.cjs` (rewritten). All shell scripts are executable and documented in `DEVELOPMENT.md`.
+
+- **New root npm scripts**: `npm run build:crx`, `npm run test:e2e`, `npm run icons`.
+
+### Changed
+
+- `.gitignore` now also ignores `test-results/`, `playwright-report/`, `dist-pages/` (Playwright + Pages build artifacts).
+- `extension/package.json` `build` script now runs `vite build && vite build --mode content` (two passes).
+- The service worker now also handles a `native-bridge-call` message type that proxies native-messaging calls from content scripts.
+- The native host's `handleRequest` now branches on `mock.Enabled()` for `get_models`, `check_connection`, `grammar_check`, and `rewrite` — mock responses include a `"mock": true` field so the extension can detect mock mode in diagnostics.
+
+### Fixed
+
+- Content script bundle was an ES module but Chrome MV3 requires it to be a classic script. Fixed by adding a second Vite build pass with `lib: { formats: ["iife"] }`.
+- Content script called `chrome.runtime.connectNative` which doesn't exist in content-script context. Fixed by routing native calls through `chrome.runtime.sendMessage` to the service worker.
+- Stale-result hash mismatch (see "Stale-result hash consistency fix" above).
+
 ## [1.0.0] — 2026-09-26
 
 ### Added
@@ -102,5 +156,6 @@ No cloud, no telemetry, no remote backend, no SaaS, no account, no login. The on
 - The PowerShell installer scripts have been manually reviewed for syntax and brace balance but have not been executed against real Windows PowerShell in this release. Run `Diagnose.bat` after install to verify every layer.
 - Real-world contenteditable behavior in Gmail / Outlook web / other rich-text editors may surface edge cases. The adapter uses `execCommand("insertText")` for undo preservation, but some editors intercept or override this command.
 
-[Unreleased]: https://github.com/kimpearce888/local-writing-assistant/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/kimpearce888/local-writing-assistant/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/kimpearce888/local-writing-assistant/releases/tag/v1.1.0
 [1.0.0]: https://github.com/kimpearce888/local-writing-assistant/releases/tag/v1.0.0

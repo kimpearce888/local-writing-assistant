@@ -1,12 +1,12 @@
 {
   "name": "local-writing-assistant-extension",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "type": "module",
   "description": "Fully local AI writing assistant Chrome extension powered by LM Studio. No cloud, no telemetry.",
   "scripts": {
     "dev": "vite build --watch --mode development",
-    "build": "vite build",
+    "build": "vite build && vite build --mode content",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",

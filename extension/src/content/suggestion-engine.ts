@@ -22,11 +22,36 @@ import {
   LIMITS,
   NativeResponse,
 } from "../shared/types";
-import { sendNative } from "../shared/native-bridge";
 import { buildGrammarPrompt } from "../shared/prompts";
 import { parseGrammarResponse } from "../shared/ai-validation";
 import { hashText, normalizeText, splitSentences } from "../shared/text-utils";
 import { getSettings, getDictionary, getIgnoredWords, ignoreSuggestionOnce } from "../shared/storage";
+
+/**
+ * Forward a native-messaging call from the content script to the
+ * service worker. Content scripts cannot call chrome.runtime.connectNative
+ * directly — only the service worker can. We use chrome.runtime.sendMessage
+ * and wait for the SW to reply with the host response.
+ */
+async function sendNativeViaSW(
+  command: string,
+  payload: unknown,
+  timeoutMs: number,
+): Promise<NativeResponse> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("SW timeout")), timeoutMs);
+    chrome.runtime.sendMessage(
+      { type: "native-bridge-call", command, payload },
+      (resp: NativeResponse | undefined) => {
+        clearTimeout(timer);
+        const err = chrome.runtime.lastError;
+        if (err) reject(new Error(err.message));
+        else if (!resp) reject(new Error("SW returned no response"));
+        else resolve(resp);
+      },
+    );
+  });
+}
 
 export interface TaggedIssue extends Issue {
   /** Editor instance this issue came from. */
@@ -174,7 +199,7 @@ export class SuggestionEngine {
       };
     }
 
-    const resp: NativeResponse = await sendNative(
+    const resp: NativeResponse = await sendNativeViaSW(
       "grammar_check",
       {
         text: focusText,

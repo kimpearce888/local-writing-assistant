@@ -202,20 +202,50 @@ The first 4 bytes are the little-endian length of the JSON body.
 
 ## Extension signing
 
-For development, the extension loads as "unpacked" with a temporary ID derived from the absolute path. For production distribution, you should:
+This repo has **already** generated an RSA keypair and embedded the public key in `extension/public/manifest.json` under the `"key"` field. The resulting stable Chrome extension ID is `lclfegmpnhibpkijgmlpjaoemnjpabcp`.
 
-1. Generate an RSA keypair once
-2. Place the public key in `extension/public/manifest.json` under the `key` field
-3. Keep the private key **out of source control**, in a secure location (e.g. a password manager, a hardware key, or a CI secret)
-4. The extension ID is then derived from the public key and is stable across machines
+### What lives where
 
-The installer's `Get-StableExtensionId` function returns a deterministic ID derived from a fixed seed — this works for Mode A force-install on a single machine but does **not** match the ID Chrome would compute from a real RSA key. For real distribution, replace this with the ID derived from your real public key.
+| File | Description | Committed to git? |
+|------|-------------|-------------------|
+| `.keys/extension.pem` | RSA 2048-bit private key — used by `scripts/build-crx.cjs` to sign the CRX | **No** (gitignored via `*.pem`) |
+| `.keys/extension.pub.b64` | Base64-encoded DER public key — used by `scripts/embed-public-key.sh` to inject into the manifest | No (not currently; you can choose to commit this since it's not a secret) |
+| `.keys/extension.id` | The 32-char stable Chrome extension ID derived from the public key | No (derived; not committed) |
+| `extension/public/manifest.json` (`"key"` field) | The base64 public key, baked into the manifest so Chrome computes the correct extension ID on every machine | Yes |
 
-The spec (section 50, 81) requires that the key remain stable across builds and not be exposed in logs or browser-accessible files. The recommended pattern is:
+### To regenerate the keypair (DO NOT do this for existing deployments)
 
-* Keep `key.pem` (private) in a CI secret
-* Keep the public key in the manifest
-* Document where the private key is stored (e.g. in your team's password manager under "Local Writing Assistant signing key")
+Regenerating the keypair changes the extension ID, which breaks Mode A force-install on already-deployed machines. Only do this for a fresh fork:
+
+```bash
+./scripts/generate-keypair.sh
+./scripts/embed-public-key.sh
+```
+
+### Building a signed CRX
+
+```bash
+# Locally (requires .keys/extension.pem to exist):
+./scripts/embed-public-key.sh
+cd extension && npm run build && cd ..
+node scripts/build-crx.cjs
+
+# In CI (release.yml):
+# Add a repository secret CRX_SIGNING_KEY = base64 of the PEM contents.
+# The release workflow will decode it, embed the public key, build, sign, and upload.
+```
+
+### How the stable ID is computed
+
+Chrome's algorithm (from the [Chromium source](https://source.chromium.org/chromium/chromium/src/+/main:components/crx_file/id_util.cc)):
+
+1. Take the DER-encoded public key
+2. Compute SHA-256
+3. Take the first 16 bytes
+4. For each byte, encode the high nibble and the low nibble into `'a'..'p'` (so 0 → 'a', 15 → 'p')
+5. Concatenate to get a 32-character lowercase string
+
+This is implemented in `scripts/generate-keypair.sh` (Python one-liner) and verified against the value Chrome actually computes when you load the extension.
 
 ---
 

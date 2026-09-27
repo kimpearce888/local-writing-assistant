@@ -88,6 +88,27 @@ jobs:
         working-directory: extension
         run: npm run build
 
+      # ---- Optionally build the signed CRX3 (only if the signing key
+      # secret is configured). When the secret is absent we just ship
+      # the ZIP, which works for Mode B installs. ----
+      - name: Build signed CRX3
+        env:
+          CRX_SIGNING_KEY: ${{ secrets.CRX_SIGNING_KEY }}
+        run: |
+          if [ -z "$CRX_SIGNING_KEY" ]; then
+            echo "CRX_SIGNING_KEY secret not set — skipping CRX3 build (ZIP-only release)."
+            exit 0
+          fi
+          mkdir -p .keys
+          echo "$CRX_SIGNING_KEY" | base64 -d > .keys/extension.pem
+          ./scripts/embed-public-key.sh
+          # Re-build the extension with the embedded public key.
+          (cd extension && npm run build)
+          node scripts/build-crx.cjs
+          # Place the CRX next to the ZIP so both are uploaded.
+          cp dist/extension.crx dist/Local-Writing-Assistant-Windows.crx
+          sha256sum dist/extension.crx > dist/extension.crx.sha256
+
       # ---- Assemble the ZIP exactly as the manual packager does ----
       - name: Package ZIP
         run: node scripts/package.cjs
@@ -111,6 +132,8 @@ jobs:
           prerelease: false
           files: |
             dist/Local-Writing-Assistant-Windows.zip
+            dist/Local-Writing-Assistant-Windows.crx
+            dist/extension.crx.sha256
           body: |
             ## Download
 

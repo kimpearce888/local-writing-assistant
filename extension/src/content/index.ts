@@ -18,8 +18,8 @@ import { EditorAdapter } from "./adapters/adapter";
 import { HighlightLayer } from "./highlight-layer";
 import { SuggestionPopup } from "./suggestion-popup";
 import { SuggestionEngine, TaggedIssue } from "./suggestion-engine";
-import { isTabPaused, isSiteExcluded } from "../shared/storage";
-import { hashText } from "../shared/text-utils";
+import { isTabPaused, isSiteExcluded, getSettings } from "../shared/storage";
+import { hashText, normalizeText } from "../shared/text-utils";
 
 const adapters = new Map<HTMLElement, EditorAdapter>();
 const highlights = new Map<HTMLElement, HighlightLayer>();
@@ -101,24 +101,31 @@ function onIssueMarkerClick(editorId: string, issueId: string): void {
     (a) => a.getEditorIdentity() === editorId,
   );
   if (!adapter) return;
-  // Stale check: editor's current text hash must match issue.textHash.
-  const currentHash = hashText(adapter.getText());
-  if (currentHash !== issue.textHash) {
-    showStalePopup();
-    return;
-  }
-  const caret = adapter.getCaretRect(issue.start);
-  if (!caret) return;
-  if (!popup) {
-    popup = new SuggestionPopup({
-      onReplace: (i) => handleReplace(i),
-      onIgnore: (i) => handleIgnore(i),
-      onIgnoreWord: (i) => handleIgnoreWord(i),
-      onAddToDictionary: (i) => handleAddToDict(i),
-      onClose: () => popup?.hide(),
-    });
-  }
-  popup.show(issue, caret);
+  // Stale check: recompute the hash the same way the engine does —
+  // normalizeText(getText()) + "|" + tone + "|" + model. If the
+  // editor's text has changed since the issue was generated, the
+  // hashes won't match and we show a stale-suggestion popup instead.
+  void getSettings().then((s) => {
+    const currentHash = hashText(
+      normalizeText(adapter.getText()) + "|" + s.tone + "|" + s.model,
+    );
+    if (currentHash !== issue.textHash) {
+      showStalePopup();
+      return;
+    }
+    const caret = adapter.getCaretRect(issue.start);
+    if (!caret) return;
+    if (!popup) {
+      popup = new SuggestionPopup({
+        onReplace: (i) => handleReplace(i),
+        onIgnore: (i) => handleIgnore(i),
+        onIgnoreWord: (i) => handleIgnoreWord(i),
+        onAddToDictionary: (i) => handleAddToDict(i),
+        onClose: () => popup?.hide(),
+      });
+    }
+    popup.show(issue, caret);
+  });
 }
 
 function showStalePopup(): void {
@@ -158,33 +165,39 @@ function handleReplace(issue: TaggedIssue): void {
     popup?.hide();
     return;
   }
-  // Re-validate against current text (section 15, section 16).
-  const currentText = adapter.getText();
-  const currentHash = hashText(currentText);
-  if (currentHash !== issue.textHash) {
+  // Re-validate against current text (section 15, section 16). The
+  // hash function must match what the engine uses — otherwise every
+  // replacement would falsely fail as stale.
+  void getSettings().then((s) => {
+    const currentText = adapter.getText();
+    const currentHash = hashText(
+      normalizeText(currentText) + "|" + s.tone + "|" + s.model,
+    );
+    if (currentHash !== issue.textHash) {
+      popup?.hide();
+      showStalePopup();
+      return;
+    }
+    // Verify the source substring still exists at the same offsets.
+    const slice = currentText.slice(issue.start, issue.end);
+    if (slice !== issue.original || slice !== issue.sourceSubstring) {
+      popup?.hide();
+      showStalePopup();
+      return;
+    }
+    adapter.replaceRange(issue.start, issue.end, issue.replacement);
+    // Remove the issue, re-analyze.
+    const list = issuesByEditor.get(issue.editorId) ?? [];
+    issuesByEditor.set(
+      issue.editorId,
+      list.filter((x) => x.id !== issue.id),
+    );
+    const layer = highlights.get(adapter.el);
+    if (layer) layer.render(adapter, issuesByEditor.get(issue.editorId) ?? []);
     popup?.hide();
-    showStalePopup();
-    return;
-  }
-  // Verify the source substring still exists at the same offsets.
-  const slice = currentText.slice(issue.start, issue.end);
-  if (slice !== issue.original || slice !== issue.sourceSubstring) {
-    popup?.hide();
-    showStalePopup();
-    return;
-  }
-  adapter.replaceRange(issue.start, issue.end, issue.replacement);
-  // Remove the issue, re-analyze.
-  const list = issuesByEditor.get(issue.editorId) ?? [];
-  issuesByEditor.set(
-    issue.editorId,
-    list.filter((x) => x.id !== issue.id),
-  );
-  const layer = highlights.get(adapter.el);
-  if (layer) layer.render(adapter, issuesByEditor.get(issue.editorId) ?? []);
-  popup?.hide();
-  // Re-analyze the editor (debounced).
-  scheduleAnalysis(adapter);
+    // Re-analyze the editor (debounced).
+    scheduleAnalysis(adapter);
+  });
 }
 
 function handleIgnore(issue: TaggedIssue): void {

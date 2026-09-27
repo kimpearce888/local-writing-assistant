@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Local Writing Assistant",
   "short_name": "Local Writer",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Fully local AI writing assistant. Grammar, spelling, clarity and rewrite powered by LM Studio on your own machine. No cloud, no telemetry.",
   "default_locale": "en",
   "icons": {
@@ -26,9 +26,15 @@
   },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["content.js"],
-      "css": ["content.css"],
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "css": [
+        "content.css"
+      ],
       "run_at": "document_idle",
       "all_frames": false
     }
@@ -77,8 +83,14 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["content.css", "icons/*"],
-      "matches": ["<all_urls>"]
+      "resources": [
+        "content.css",
+        "icons/*"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
     }
-  ]
+  ],
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA5H1q7HuhWQ259bSX66ylLIplPIN4PTtyxAy5IXQKhAmQk9c5qI2ei6q3TT7+WiwCRk8RusyK+ib8O7aSKEjSM06hMBLI9K3GFjOFZTlfFre+PPysDhKDc+nWBNUfMIOn5sGickDgjLwJ5ewHk021dHhwWT+5vKJsvT/V0BDQL1IeS+s/rl4PwFCYVcUk03Vpt9Vr8/OUBAn9HSeHZWOdqNDL3Hq+UOalzuKvQaPtUexFu9aA3XktayoBvUmGcc+3mNkcV+2ye035krT8R3ECzZ0jaN6/709yRxeFxxUWk+lUX1shtRHlHk5zXmED7xuTcAoNv/yZzgPbandVtKCotwIDAQAB"
 }

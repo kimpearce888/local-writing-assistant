@@ -15,6 +15,7 @@
 
 import {
   ExtensionSettings,
+  NativeRequest,
   NativeResponse,
   RewriteOperation,
   ToneMode,
@@ -128,6 +129,14 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
 
     case "popup-test-connection":
       handleTestConnection().then(reply).catch(() => reply(null));
+      return true;
+
+    case "native-bridge-call":
+      // Forward a native-messaging call from a content script (which
+      // cannot call chrome.runtime.connectNative directly) to the host.
+      handleNativeBridgeCall(msg.command as string, msg.payload).then(reply).catch((e) =>
+        reply({ ok: false, error: String(e) }),
+      );
       return true;
 
     case "popup-get-settings":
@@ -287,5 +296,29 @@ async function handleSidePanelTone(
   } catch (e: unknown) {
     const err = e as { code?: string; message?: string };
     return { ok: false, error: err?.message ?? "tone transform failed" };
+  }
+}
+
+/**
+ * Forward a native-messaging call from a content script to the host.
+ * Content scripts cannot call chrome.runtime.connectNative directly —
+ * only the service worker can — so the content script's suggestion engine
+ * sends a runtime message to the SW, which calls sendNative() and
+ * returns the result.
+ */
+async function handleNativeBridgeCall(
+  command: string,
+  payload: unknown,
+): Promise<NativeResponse> {
+  try {
+    const resp = await sendNative(command as NativeRequest["command"], payload);
+    return resp;
+  } catch (e: unknown) {
+    const err = e as Error;
+    return {
+      ok: false,
+      errorCode: "NATIVE_HOST_UNAVAILABLE",
+      error: err?.message ?? "unknown error",
+    };
   }
 }

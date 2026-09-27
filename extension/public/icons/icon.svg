@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1f6feb"/>
+      <stop offset="100%" stop-color="#8957e5"/>
+    </linearGradient>
+    <linearGradient id="pen" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#e6edf3" stop-opacity="0.85"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Rounded background -->
+  <rect x="6" y="6" width="116" height="116" rx="24" ry="24" fill="url(#bg)"/>
+
+  <!-- Subtle inner highlight -->
+  <rect x="6" y="6" width="116" height="58" rx="24" ry="24" fill="#ffffff" opacity="0.08"/>
+
+  <!-- Stylized "L" — vertical stroke + horizontal foot -->
+  <path d="M 44 36 L 44 88 L 84 88 L 84 78 L 54 78 L 54 36 Z"
+        fill="url(#pen)"/>
+
+  <!-- Quill/caret detail in the corner — suggests "writing" -->
+  <path d="M 88 28 L 100 28 L 100 40 L 96 44 L 92 40 L 88 36 Z"
+        fill="#ffffff" opacity="0.9"/>
+  <path d="M 88 28 L 92 32 L 96 36 L 100 40 L 100 28 Z"
+        fill="#ffffff" opacity="0.6"/>
+</svg>

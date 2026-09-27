@@ -44,7 +44,14 @@ $Host.UI.RawUI.WindowTitle = "Local Writing Assistant Installer"
 $AppFolderName   = "LocalWritingAssistant"
 $HostName        = "com.localwritingassistant.host"
 $ExtensionName   = "LocalWritingAssistant"
-$ExtensionIdSeed = "LocalWritingAssistant-v1"
+
+# Stable Chrome extension ID, derived from the RSA public key embedded in
+# extension/public/manifest.json under the "key" field. The private key
+# lives in .keys/extension.pem and is NEVER shipped in the installer
+# package — it is only used by scripts/build-crx.cjs to sign the .crx for
+# Mode A distribution. Because the public key is in the manifest, Chrome
+# will compute this exact ID on every machine that loads the extension.
+$ExtensionId     = "lclfegmpnhibpkijgmlpjaoemnjpabcp"
 
 # Chrome registry paths (user + machine scope).
 $ChromePolicy_User  = "HKCU:\Software\Policies\Google\Chrome"
@@ -102,27 +109,9 @@ function Get-ChromeMajorVersion {
   }
 }
 
-# Stable extension ID derived from a fixed public key fingerprint.
-# See spec section 50: the key must remain stable across builds.
+# Stable extension ID — see $ExtensionId constant above.
 function Get-StableExtensionId {
-  # The SHA-256 of the seed, truncated to 32 hex chars and converted to
-  # the a-p formatting Chrome uses for extension IDs.
-  # This is deterministic and stable across installs, which is what the
-  # spec requires. For production distribution you'd replace this with
-  # the ID derived from a real RSA public key (kept out of source control).
-  $sha = [System.Security.Cryptography.SHA256]::Create()
-  $bytes = [System.Text.Encoding]::UTF8.GetBytes($ExtensionIdSeed)
-  $hash = $sha.ComputeHash($bytes)
-  $hex = ($hash | ForEach-Object { $_.ToString("x2") }) -join ""
-  $sub = $hex.Substring(0, 32)
-  # Map 0-9, a-f → Chrome's a-p alphabet.
-  $sb = New-Object System.Text.StringBuilder
-  foreach ($ch in $sub.ToCharArray()) {
-    $v = [Convert]::ToInt32($ch.ToString(), 16)
-    $c = [char]([ord('a')] + $v)
-    [void]$sb.Append($c)
-  }
-  return $sb.ToString()
+  return $ExtensionId
 }
 
 function ord($c) { return [int][char]$c }

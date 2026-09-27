@@ -39,11 +39,17 @@ Thumbs.db
 .env.*.local
 *.pem
 *.key
+.keys/
 secrets/
 
 # Test coverage
 coverage/
 .nyc_output/
+
+# Playwright test artifacts
+test-results/
+playwright-report/
+dist-pages/
 
 # Logs
 *.log
