@@ -8,6 +8,87 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 _No unreleased changes yet._
 
+## [1.2.0] — 2026-09-29
+
+A production-readiness release focused on a from-scratch neutral audit and fixes for every BLOCKER / HIGH severity issue uncovered. The audit covered the entire codebase (extension TS, native host Go, Windows installer PowerShell, CI/CD, docs) and was run independently of the project's own test suite.
+
+### Merged — All 9 pending dependabot branches
+
+- **GitHub Actions**: `setup-go` v5→v7, `setup-node` v4→v7, `action-gh-release` v2→v3
+- **Root npm**: `jsdom` 25→30.1.1, `vitest` 2.1.6→5.0.2
+- **Extension npm**: `@types/chrome` 0.0.287→0.3.4, `@types/node` 22.10.0→26.6.3, `typescript` 5.6.3→7.0.2, `vite` 5.4.11→8.3.1, `vitest` 2.1.6→5.0.2
+
+Vite 8 un-bundled `esbuild` (Vite 8 uses `rolldown` as the default bundler but our config still requests `minify: 'esbuild'`), so `esbuild` is now an explicit devDependency. The `__dirname` reference in `vite.config.ts` was replaced with `import.meta.dirname` because Vite 8 dropped CJS dirname support in ESM config files.
+
+### Fixed — Extension BLOCKERs (3)
+
+- **B1. Side-panel Replace never worked.** The content script's `handleSelectionForRewrite()` sent only `{type, text, editorId}` and the service worker forwarded only those three fields to the side panel — so `state.start`, `state.end`, and `state.expectedHash` were never set. The side panel's Replace button always failed with "No editor is bound to this rewrite." Fixed by computing selection offsets + a hash of the full editor text in the content script, forwarding all four fields through the SW, and requiring `state.expectedHash` to be present before the apply (a missing hash surfaces as a clear error rather than a fallback to `hashText(state.text)` which would never match).
+- **B2. Hash contract was inconsistent across three code paths.** The engine hashed `normalizeText(text) + "|" + tone + "|" + model`; the content script's apply-rewrite handler used `hashText(currentText)` (no normalize, no tone, no model) — every popup falsely reported `STALE_RESULT`. The side panel used `hashText(state.text)` (no normalize, no tone, no model). Fixed by using ONE hash function everywhere: `hashText(rawText + "|" + tone + "|" + model)`. Also dropped the `normalizeText` call from the offset path because the LLM returns offsets into the string we sent it — if we normalize for hashing but send raw (or vice versa), the `slice()` at apply time would land on the wrong characters whenever the editor's text contains control characters.
+- **B3. Pause-site feature was doubly broken.** `storage.ts` had `pausedTabs = new Set<number>()` at module scope — but the SW and CS bundles instantiate separate copies of the module, so the SW's view and the CS's view diverged. Plus `content/index.ts _tabId()` hardcoded `return -1`. The pause button did nothing. Fixed by moving pause state to `chrome.storage.local` keyed on the host (so pausing `slack.com` applies to all Slack tabs, which is what users actually want). `chrome.storage.local` is always readable from content scripts (no `setAccessLevel` dance required, unlike `chrome.storage.session`). Pause now persists across browser restarts — desirable behavior for "I don't want suggestions on this site."
+
+### Fixed — Extension HIGHs (highlights)
+
+- **H1.** `suggestion-engine.ts inFlight` race. `finally{}` unconditionally deleted the inFlight entry by key, even when a newer `analyze()` had already swapped in a different controller. Now we only delete if `current.controller === controller`.
+- **H2/H3.** `highlight-layer.ts` overlay drift on scroll. The overlay was `position:absolute` anchored at `documentElement`, so on any scrolled page (Gmail, Slack, Notion) markers drifted by `scrollY` pixels. Fixed by switching to `position:fixed` (since `getBoundingClientRect()` returns viewport coords) + adding `scroll` / `resize` listeners with `capture: true` (catches scrollable inner containers — common in Gmail/Slack/Notion) that re-sync the overlay position.
+- **H4.** `layer.onClick()` listener leak. Called on every `onAnalyzeComplete`, the returned unsubscribe was never captured — so after 10 analyses a single click would fire `onIssueMarkerClick` 10×. Now we capture the unsubscribe and call it before re-attaching.
+- **H5.** `adapter.onInput()` + element focus/blur listeners were never unsubscribed. SPAs (Gmail/Slack/Notion) that never do a full page navigation would leak listeners across view switches. Now each `EditorEntry` stores its own `detach()` that removes all listeners + disposes the layer.
+- **H6.** `MutationObserver` ran `rescanPage()` (which does `document.querySelectorAll` over the whole document) on every mutation with no debounce. Severe jank on Notion/Slack. Now debounced 250 ms.
+- **H7.** `content-editable.ts getText()` returned `el.innerText` (layout-dependent, collapses whitespace) but `_textOffsetToRange` walked `Text` nodes by `.data.length`. For multi-block editors (Gmail/Outlook/Slack compose), the LLM's offsets wouldn't map to the right range. Now `getText()` walks `Text` nodes the same way `_textOffsetToRange` does — the two views are guaranteed identical.
+- **H10.** `focusText` vs `fullText` mismatch. The engine built a `focusText` of the first 6 sentences joined with single spaces, but the hash was computed from the full text (with newlines). At apply time, `currentText.slice(start, end)` sliced the FULL text with offsets from `focusText` — silent mismatch. Fixed by dropping the `focusText` optimization entirely; we now send the full text (capped at `maxAnalyzeTextBytes`) and use it consistently for hashing, slicing, and the LLM payload.
+- **H13.** Cross-tab trust boundary. `side-panel-apply-rewrite` trusted `msg.tabId` from the side panel without comparing to the SW's stored `SIDE_PANEL_TAB_KEY`. A content script in tab B could send a forged `selection-for-rewrite` and hijack the rewrite flow to inject text into tab A. Fixed by trusting the SW-stored `SIDE_PANEL_TAB_KEY` (set when the side panel was opened for a specific tab via context menu / keyboard shortcut) and falling back to `msg.tabId` only if the SW has no stored id.
+- **H14.** `web_accessible_resources` exposed `icons/*` to `<all_urls>`. Combined with the pinned extension key (stable extension ID), any web page could probe `chrome-extension://<id>/icons/...` to fingerprint the extension. Tightened to only expose `content.css` (which the host page actually needs).
+- Plus per-editor debounce timer (instead of global), `handleIgnore` now updates the issue's editor layer (not `currentEditor`, which may be a different adapter), adapter selection matches bare `contenteditable` / `contenteditable=""` (HTML boolean attribute), disposed editors are removed from the `editors` map on rescan (was a memory leak on SPAs), and markers have keyboard support (Enter/Space activates the same as click) for accessibility.
+
+### Fixed — Native host (Go)
+
+- **H6.** `main.go run()` loop continued after a partial-body read (`io.ErrUnexpectedEOF`), causing the next `binary.Read` to interpret body bytes as a length prefix → stream desync, hangs, or wrong-payload confusion. Now exits on any read error other than clean `io.EOF`; Chrome will respawn the host on next message.
+- **M3.** Mock `get_models` returned `{raw: "...", mock: true}` while the real handler returned `{models: [...]}` — so the extension's `handleGetModels` parsed zero models in mock mode. Now both shapes are identical; the extension code path is unified.
+- **M4.** `ClampText` truncated with `s[:maxBytes]`, which can slice a multi-byte UTF-8 rune in half. The resulting invalid UTF-8 would confuse the LLM and break JSON marshalling. Now rune-aware: walks back from `maxBytes` to the previous valid boundary.
+- **M1.** `SanitizeLMStudioURL` rebuilt IPv6 literals as `http://::1:1234` (malformed — missing brackets). Now uses `net.JoinHostPort` which emits `http://[::1]:1234`.
+- **M5.** URL host lookup was case-sensitive — `http://LOCALHOST:1234` was rejected. Now lowercased before the `allowedHosts` check.
+- **L1.** Replaced the hand-rolled O(n*m) `contains()` with `strings.Contains`.
+
+### Fixed — Windows installer
+
+- **B1.** `install.ps1` wiped the user's existing `ExtensionInstallForcelist` entries. `New-ItemProperty -Force` DELETES the existing property and recreates it with only the new value — destroying every other force-install entry (corporate SSO, password managers, etc.). The docstring promised "we never overwrite existing ExtensionInstallForcelist keys" but the code did exactly that. Fixed by reading the existing array, appending our entry only if it isn't already present, and writing the full array back with `Set-ItemProperty` (which preserves the property's ACLs and metadata; `-Force` is NOT used).
+- **B2.** Mode A `update.xml` was fundamentally broken: `codebase` was `file:///C:/Users/.../extension.crx` — Chrome refuses to fetch `update.xml` from `file://` URLs (or `http://` other than localhost). Every Mode A install silently failed. No `extension.crx` file was ever built. `version="1.0.0"` was hardcoded while the actual extension version was different. Fixed by pointing `codebase` at the GitHub Pages HTTPS URL (`https://kimpearce888.github.io/local-writing-assistant/update.xml`) and reading the version from `manifest.json`.
+- **H1.** `uninstall.ps1` only cleaned HKCU; if the user had installed as admin (HKLM), those entries remained. Now iterates both HKCU (always) and HKLM (only if admin), warning clearly when HKLM cleanup needs admin rights.
+- **H2.** `uninstall.ps1` used a loose substring match (`$val -match "LocalWritingAssistant"`) to identify our own `ExtensionInstallForcelist` entries — any unrelated extension whose URL happened to contain that string would be deleted too. Fixed by matching against the EXACT extension ID prefix `lclfegmpnhibpkijgmlpjaoemnjpabcp;*`.
+- **H3.** All three `.bat` launchers (`Install.bat`, `Uninstall.bat`, `Diagnose.bat`) always exited 0 because `%ERRORLEVEL%` inside an `if` block is expanded at PARSE time (before `pwsh` runs), so `exit /b %ERRORLEVEL%` inside the `if` block always returned the value from BEFORE `pwsh` ran (typically 0). Fixed with `setlocal enabledelayedexpansion` + `!ERRORLEVEL!`.
+- **H4.** `install.ps1 robocopy | Out-Null` swallowed the exit code. `robocopy` returns 0–3 for success, 4+ for warnings/errors. A failed copy would silently succeed. Fixed by capturing `$LASTEXITCODE` and exiting 1 if ≥ 8.
+- **M9.** `uninstall.ps1 Remove-Item -ErrorAction SilentlyContinue` swallowed errors but still printed "Removed: $installRoot". Now uses `ErrorAction Stop` and reports failures honestly with a recovery hint.
+
+### Fixed — CI/CD
+
+- **B1.** `release.yml` and `pages.yml` called `scripts/embed-public-key.sh` after provisioning only `.keys/extension.pem`. That script additionally required `.keys/extension.pub.b64` and `.keys/extension.id` — neither was provisioned — so the script always exited 1 under `set -euo pipefail` and the entire CRX build was silently skipped. Removed the call entirely; the committed `extension/public/manifest.json` already has the RSA public key embedded under the `"key"` field, so Chrome computes the stable extension ID on every machine. No re-embedding needed.
+- **B2.** `pages.yml update.xml` hardcoded `version="1.0.0"`. Chrome's update logic refuses to install when the advertised version is older than what's already installed. Now reads version from `manifest.json` via `jq`.
+- Removed the unused Go setup in `pages.yml` (no Go step in that workflow).
+- Added a `dependabot.yml` entry for the `tests/go.mod` module (was missing — dependabot never opened PRs for the integration tests' Go module).
+
+### Fixed — Packaging / version sync
+
+- `scripts/package.cjs` now ships `LICENSE` and `CHANGELOG.md` inside the ZIP — previously the ZIP was MIT-non-compliant (the license requires that the copyright notice be included in all copies).
+- Version strings synchronized across all 5 locations (was drifting: `LocalWritingAssistant.iss` was on 1.0.0 while everything else was on 1.1.0): `package.json`, `extension/package.json`, `extension/public/manifest.json`, `native-host/cmd/localwritingassistanthost/main.go hostVersion()`, and `installer/LocalWritingAssistant.iss`.
+- `scripts/network-audit.cjs` now skips `installer/*.ps1` and `*.bat` files. The audit's purpose is to verify the EXTENSION + NATIVE HOST RUNTIME doesn't phone home, not to flag every URL string in installer config (which legitimately contains the CRX update.xml URL written to `ExtensionInstallForcelist`).
+
+### Added — Test coverage
+
+- 3 new Playwright E2E tests (`tests/e2e/manual-flow.spec.cjs`) that cover the previously-untested fixes:
+  - **scroll repositions the highlight overlay** — loads a realistic scrollable page, triggers analysis, scrolls 400px, verifies the marker moved ~400px in viewport coords. Catches H2/H3.
+  - **side-panel rewrite→Replace flow no longer shows B1 error** — sends a `side-panel-rewrite` message via the SW (which broadcasts to all extension pages), runs a mock rewrite, clicks Replace, verifies the B1 error "No editor is bound to this rewrite" does NOT appear. Catches B1.
+  - **pause-site feature suppresses analysis while paused** — pauses the host via `chrome.storage.local`, reloads the page, verifies no markers appear; unpauses, reloads, verifies markers reappear. Catches B3.
+
+### Test totals (all green)
+
+- 37 Vitest unit tests
+- 4 Go unit tests
+- 9 Go integration tests (wire protocol + mock AI)
+- 10 Playwright E2E tests (7 original + 3 new manual-flow)
+- = **60 tests total**
+- Static network + security audits: clean
+- TypeScript typecheck: clean
+- Windows EXE cross-compile: PE32+ verified
+
 ## [1.1.0] — 2026-09-27
 
 ### Added
@@ -156,6 +237,7 @@ No cloud, no telemetry, no remote backend, no SaaS, no account, no login. The on
 - The PowerShell installer scripts have been manually reviewed for syntax and brace balance but have not been executed against real Windows PowerShell in this release. Run `Diagnose.bat` after install to verify every layer.
 - Real-world contenteditable behavior in Gmail / Outlook web / other rich-text editors may surface edge cases. The adapter uses `execCommand("insertText")` for undo preservation, but some editors intercept or override this command.
 
-[Unreleased]: https://github.com/kimpearce888/local-writing-assistant/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/kimpearce888/local-writing-assistant/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/kimpearce888/local-writing-assistant/releases/tag/v1.2.0
 [1.1.0]: https://github.com/kimpearce888/local-writing-assistant/releases/tag/v1.1.0
 [1.0.0]: https://github.com/kimpearce888/local-writing-assistant/releases/tag/v1.0.0
