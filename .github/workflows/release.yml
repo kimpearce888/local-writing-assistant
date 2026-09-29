@@ -101,9 +101,13 @@ jobs:
           fi
           mkdir -p .keys
           echo "$CRX_SIGNING_KEY" | base64 -d > .keys/extension.pem
-          ./scripts/embed-public-key.sh
-          # Re-build the extension with the embedded public key.
-          (cd extension && npm run build)
+          # The committed extension/public/manifest.json ALREADY has
+          # the RSA public key embedded under the "key" field, so we
+          # do NOT need to call scripts/embed-public-key.sh (which
+          # additionally requires .keys/extension.pub.b64 and
+          # .keys/extension.id — neither is provisioned by this
+          # workflow, so the script always failed and silently
+          # skipped the CRX build under set -euo pipefail).
           node scripts/build-crx.cjs
           # Place the CRX next to the ZIP so both are uploaded.
           cp dist/extension.crx dist/Local-Writing-Assistant-Windows.crx

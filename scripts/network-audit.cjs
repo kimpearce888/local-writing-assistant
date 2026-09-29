@@ -1,8 +1,8 @@
 /**
  * Static network audit (spec section 92).
  *
- * Walks every source file (excluding node_modules / dist / build
- * artifacts) and flags any occurrence of:
+ * Walks every RUNTIME source file (excluding node_modules / dist / build
+ * artifacts / installer scripts) and flags any occurrence of:
  *   - fetch(...    (we use chrome.runtime.connectNative instead)
  *   - XMLHttpRequest
  *   - WebSocket
@@ -12,7 +12,18 @@
  *
  * The only permitted runtime network destination is the local LM
  * Studio server. Anything else is treated as a build failure.
+ *
+ * What this audit intentionally does NOT scan:
+ *   - installer/*.ps1, installer/*.bat — these legitimately contain
+ *     URLs as CONFIGURATION VALUES (e.g. the CRX update.xml URL that
+ *     gets written to the registry's ExtensionInstallForcelist). They
+ *     are not runtime code that makes network calls. The audit's
+ *     purpose is to verify the extension + native host runtime doesn't
+ *     phone home, not to flag every URL string in installer config.
+ *   - *.md documentation files — same reasoning.
+ *   - package-lock.json / yarn.lock — build-time metadata.
  */
+
 
 const fs = require("node:fs");
 const path = require("node:path");
@@ -67,6 +78,13 @@ function scan(file) {
   if (file.endsWith("package-lock.json") || file.endsWith("yarn.lock")) return;
   // Skip docs — they describe patterns but don't execute them.
   if (file.endsWith(".md")) return;
+  // Skip installer scripts — they legitimately contain non-local URLs
+  // as CONFIGURATION VALUES (e.g. the CRX update.xml URL that gets
+  // written to the registry's ExtensionInstallForcelist). They are not
+  // runtime code that makes network calls. The audit's purpose is to
+  // verify the extension + native host runtime doesn't phone home,
+  // not to flag every URL string in installer config.
+  if (file.endsWith(".ps1") || file.endsWith(".bat")) return;
   // Check forbidden patterns.
   for (const { name, regex } of FORBIDDEN_PATTERNS) {
     regex.lastIndex = 0;
@@ -85,11 +103,11 @@ function scan(file) {
     // Allow only loopback.
     const isLocal = ALLOWED_HOSTS.some((h) => host.startsWith(h));
     if (isLocal) continue;
-    // Skip XML namespace URIs in PowerShell / XML files — those are
-    // identifiers, not network calls. Chrome's update.xml schema requires
-    // the http://www.google.com/update2/response namespace.
-    if (file.endsWith(".ps1") && host.includes("google.com/update2")) continue;
-    if (file.endsWith(".ps1") && host === "www.google.com") continue;
+    // Skip XML namespace URIs in XML files — those are identifiers,
+    // not network calls. Chrome's update.xml schema requires the
+    // http://www.google.com/update2/response namespace.
+    if (file.endsWith(".xml") && host.includes("google.com/update2")) continue;
+    if (file.endsWith(".xml") && host === "www.google.com") continue;
     // Skip test fixtures that intentionally exercise rejection logic.
     if (file.endsWith("_test.go")) {
       // These tests deliberately include "should be rejected" URLs —

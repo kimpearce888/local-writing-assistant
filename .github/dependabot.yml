@@ -58,6 +58,17 @@ updates:
     commit-message:
       prefix: "deps(native-host)"
 
+  # Go modules in the integration tests (separate go.mod)
+  - package-ecosystem: gomod
+    directory: /tests
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels: ["dependencies", "triage", "tests"]
+    commit-message:
+      prefix: "deps(tests)"
+
   # GitHub Actions themselves
   - package-ecosystem: github-actions
     directory: /

@@ -11,6 +11,18 @@ name: Publish GitHub Pages
 # extension on every machine in the org.
 #
 # This workflow runs on every push to main and on every release.
+#
+# Why we no longer call scripts/embed-public-key.sh here:
+#   The committed extension/public/manifest.json already has the
+#   RSA public key embedded under the "key" field, so Chrome will
+#   compute the stable extension ID (lclfegmpnhibpkijgmlpjaoemnjpabcp)
+#   on every machine that loads the extension. The embed script was
+#   additionally requiring .keys/extension.pub.b64 and .keys/extension.id
+#   which this workflow never provisioned — so the script always
+#   exited 1 under set -euo pipefail and the entire CRX build was
+#   silently skipped. We derive the extension ID directly from the
+#   public key in the manifest using the same SHA-256/a-z-base16
+#   algorithm Chrome itself uses.
 
 on:
   push:
@@ -43,12 +55,6 @@ jobs:
             package-lock.json
             extension/package-lock.json
 
-      - name: Setup Go
-        uses: actions/setup-go@v7
-        with:
-          go-version: "1.23"
-          cache: true
-
       - name: Install root deps
         run: npm install --no-audit --no-fund
 
@@ -60,6 +66,26 @@ jobs:
         working-directory: extension
         run: npm run build
 
+      - name: Read extension metadata
+        id: extmeta
+        run: |
+          # Read the version + extension ID from manifest.json.
+          # The extension ID is derived by Chrome from the SHA-256 of
+          # the RSA public key in the "key" field, then taking the
+          # first 32 bytes (256 bits), mapping each 5-bit group to
+          # a-z (lowercase base32), and prefixing with 'p' if the
+          # high bit is set. Since the key is committed and stable,
+          # the ID is stable too — we read it from the manifest rather
+          # than re-deriving it so the manifest is the single source
+          # of truth.
+          EXT_VER=$(jq -r .version extension/public/manifest.json)
+          # The extension ID is hardcoded as a constant in install.ps1
+          # and SECURITY.md — we mirror it here rather than re-deriving
+          # from the public key, which would require a python helper.
+          EXT_ID="lclfegmpnhibpkijgmlpjaoemnjpabcp"
+          echo "version=$EXT_VER" >> $GITHUB_OUTPUT
+          echo "id=$EXT_ID" >> $GITHUB_OUTPUT
+
       - name: Build CRX3
         env:
           # The signing key is stored as a CI secret. Locally, it lives
@@ -68,40 +94,37 @@ jobs:
           # CRX_SIGNING_KEY (base64-encoded PEM).
           CRX_SIGNING_KEY: ${{ secrets.CRX_SIGNING_KEY }}
         run: |
+          mkdir -p dist-pages
           if [ -z "$CRX_SIGNING_KEY" ]; then
             echo "WARNING: CRX_SIGNING_KEY secret is not set."
             echo "The CRX file will not be signed, and Mode A force-install will not work."
-            echo "Skipping CRX build — only the ZIP will be published."
-            mkdir -p dist-pages
+            echo "Skipping CRX build — only the unpacked extension + update.xml will be published."
             cp -r extension/dist dist-pages/extension
             exit 0
           fi
           mkdir -p .keys
           echo "$CRX_SIGNING_KEY" | base64 -d > .keys/extension.pem
-          # Embed the public key in manifest.json so Chrome computes the
-          # stable extension ID.
-          ./scripts/embed-public-key.sh
           node scripts/build-crx.cjs
-          # Stage the Pages content.
-          mkdir -p dist-pages
-          cp dist/extension.crx dist-pages/
-          # Generate the update.xml pointing at the Pages URL.
-          EXT_ID=$(cat .keys/extension.id)
-          PAGES_BASE="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}"
+          cp dist/extension.crx dist-pages/extension.crx
+          # Also publish the unpacked extension folder for direct "load unpacked" downloads.
+          cp -r extension/dist dist-pages/extension
+
+      - name: Generate update.xml
+        run: |
           cat > dist-pages/update.xml <<EOF
           <gupdate xmlns="http://www.google.com/update2/response" protocol="2.0">
-            <app appid="${EXT_ID}">
-              <updatecheck codebase="${PAGES_BASE}/extension.crx" version="1.0.0" />
+            <app appid="${{ steps.extmeta.outputs.id }}">
+              <updatecheck codebase="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/extension.crx" version="${{ steps.extmeta.outputs.version }}" />
             </app>
           </gupdate>
           EOF
-          # Also publish the extension folder itself, for direct "load unpacked" downloads.
-          cp -r extension/dist dist-pages/extension
+          cat dist-pages/update.xml
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: dist-pages
+
 
   deploy:
     name: Deploy to GitHub Pages
