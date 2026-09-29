@@ -18,7 +18,7 @@ import { EditorAdapter } from "./adapters/adapter";
 import { HighlightLayer } from "./highlight-layer";
 import { SuggestionPopup } from "./suggestion-popup";
 import { SuggestionEngine, TaggedIssue } from "./suggestion-engine";
-import { isSiteExcluded, getSettings } from "../shared/storage";
+import { isSiteExcluded, isHostPaused, getSettings } from "../shared/storage";
 import { hashText } from "../shared/text-utils";
 
 interface EditorEntry {
@@ -50,26 +50,14 @@ function isAllowedPage(): boolean {
 
 async function shouldRunOnSite(): Promise<boolean> {
   if (!isAllowedPage()) return false;
-  // Pause state lives in chrome.storage.session (shared between SW and
-  // content script). The previous in-memory Set was per-bundle, so the
-  // SW's view and the content script's view diverged.
-  if (await isTabPaused()) return false;
+  // Pause state lives in chrome.storage.local (always accessible
+  // from content scripts). Keyed on the host so pausing slack.com
+  // applies to all Slack tabs. Previously this used an in-memory
+  // Set that diverged between SW and CS bundles — the pause
+  // button did nothing.
+  if (await isHostPaused(location.host)) return false;
   if (await isSiteExcluded(location.host)) return false;
   return true;
-}
-
-/** Look up this tab's pause state from session storage. The tab id is
- *  not directly available in a content script, so we store pause state
- *  keyed on the tab URL host instead — that's also more meaningful
- *  (pausing "slack.com" applies to all Slack tabs, not just one). */
-async function isTabPaused(): Promise<boolean> {
-  try {
-    const key = `paused:${location.host}`;
-    const res = await chrome.storage.session.get(key);
-    return res[key] === true;
-  } catch {
-    return false;
-  }
 }
 
 function registerEditor(el: HTMLElement): void {

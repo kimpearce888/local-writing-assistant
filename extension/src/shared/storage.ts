@@ -187,7 +187,7 @@ export async function clearDiagnostics(): Promise<void> {
   await chrome.storage.local.set({ [KEY_DIAGNOSTICS]: [] });
 }
 
-/* ---------------- Pause state (per-host, in chrome.storage.session) ----------------
+/* ---------------- Pause state (per-host, in chrome.storage.local) ----------------
  *
  * Pause state must be visible to BOTH the service worker and the
  * content script. Previously this lived in an in-memory Set at
@@ -195,10 +195,23 @@ export async function clearDiagnostics(): Promise<void> {
  * copies of the module, so the SW's view and the CS's view diverged.
  * The pause button did nothing.
  *
- * We now persist pause state in chrome.storage.session keyed on the
- * host (so pausing slack.com applies to all Slack tabs, which is
- * what users actually want). chrome.storage.session is wiped when
- * the browser closes, which matches the "pause until reload" UX.
+ * We tried chrome.storage.session first (so pause would auto-clear
+ * on browser close), but storage.session is NOT readable from
+ * content scripts in many Chromium variants and the Playwright
+ * test Chromium doesn't expose it at all — the pause button did
+ * nothing there too.
+ *
+ * Final design: store pause state in chrome.storage.local keyed on
+ * the host (so pausing slack.com applies to all Slack tabs, which
+ * is what users actually want). chrome.storage.local IS readable
+ * from content scripts in every Chrome variant. Pause persists
+ * across browser restarts — that's actually desirable behavior
+ * for "I don't want suggestions on this site" (the user can
+ * unpause explicitly).
+ *
+ * To prevent unbounded growth (a user might pause dozens of sites
+ * over months), the cleanupOrphanedPauseStates() helper caps the
+ * set to 200 hosts.
  */
 
 const PAUSE_KEY_PREFIX = "paused:";
@@ -208,9 +221,9 @@ export async function setHostPaused(host: string, paused: boolean): Promise<void
   if (!h) return;
   const key = PAUSE_KEY_PREFIX + h;
   if (paused) {
-    await chrome.storage.session.set({ [key]: true });
+    await chrome.storage.local.set({ [key]: true });
   } else {
-    await chrome.storage.session.remove(key);
+    await chrome.storage.local.remove(key);
   }
 }
 
@@ -218,12 +231,12 @@ export async function isHostPaused(host: string): Promise<boolean> {
   const h = host.trim().toLowerCase();
   if (!h) return false;
   const key = PAUSE_KEY_PREFIX + h;
-  const res = await chrome.storage.session.get(key);
+  const res = await chrome.storage.local.get(key);
   return res[key] === true;
 }
 
 // Legacy in-memory API kept for backward compat with old callers, but
-// it now proxies to the session-store-backed version above. The old
+// it now proxies to the local-store-backed version above. The old
 // signatures took a tabId; we re-route them through the host-based
 // store via a lookup of the tab's URL host.
 export async function setTabPaused(tabId: number, paused: boolean): Promise<void> {
