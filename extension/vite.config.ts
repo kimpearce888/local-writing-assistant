@@ -25,8 +25,8 @@ function copyPublicDir() {
   return {
     name: "copy-public-dir",
     closeBundle() {
-      const publicDir = resolve(__dirname, "public");
-      const outDir = resolve(__dirname, "dist");
+      const publicDir = resolve(import.meta.dirname, "public");
+      const outDir = resolve(import.meta.dirname, "dist");
       if (!existsSync(publicDir)) return;
       copyRecursive(publicDir, outDir);
     },
@@ -67,7 +67,7 @@ export default defineConfig(({ mode }) => {
         sourcemap: false,
         minify: "esbuild",
         lib: {
-          entry: resolve(__dirname, "src/content/index.ts"),
+          entry: resolve(import.meta.dirname, "src/content/index.ts"),
           name: "LocalWritingAssistantContent",
           formats: ["iife"],
           fileName: () => "content.js",
@@ -96,11 +96,11 @@ export default defineConfig(({ mode }) => {
       rollupOptions: {
         input: {
           // Service worker — emitted as ES module (manifest declares type:"module").
-          background: resolve(__dirname, "src/background/service-worker.ts"),
+          background: resolve(import.meta.dirname, "src/background/service-worker.ts"),
           // HTML pages.
-          popup: resolve(__dirname, "popup.html"),
-          sidepanel: resolve(__dirname, "sidepanel.html"),
-          options: resolve(__dirname, "options.html"),
+          popup: resolve(import.meta.dirname, "popup.html"),
+          sidepanel: resolve(import.meta.dirname, "sidepanel.html"),
+          options: resolve(import.meta.dirname, "options.html"),
         },
         output: {
           entryFileNames: "[name].js",

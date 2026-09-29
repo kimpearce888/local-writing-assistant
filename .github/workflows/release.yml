@@ -30,7 +30,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: "20"
           cache: npm
@@ -39,7 +39,7 @@ jobs:
             extension/package-lock.json
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
           go-version: "1.23"
           cache: true
@@ -123,7 +123,7 @@ jobs:
       # ---- Publish ----
       - name: Create or update GitHub Release
         id: release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.tag.outputs.name }}
           name: "Local Writing Assistant ${{ steps.tag.outputs.name }}"
