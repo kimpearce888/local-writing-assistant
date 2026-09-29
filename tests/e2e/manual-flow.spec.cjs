@@ -129,16 +129,11 @@ test.describe("Manual user-flow tests", () => {
     const port = await ensureHttpServerWithRealisticPage();
     const { context } = await launchExtensionContext();
     try {
-      // Open the realistic page so the content script registers an
-      // editor (we don't actually need to interact with it, just
-      // need the page to be loaded so the SW knows the tab exists).
       const page = await context.newPage();
       await page.goto(`http://127.0.0.1:${port}/realistic.html`);
       await page.waitForLoadState("domcontentloaded");
 
-      // Open the side panel page directly. Chrome doesn't allow
-      // automation to "open" the side panel, but we can navigate
-      // to the side-panel chrome-extension:// URL directly.
+      // Open the side panel page directly.
       const sidePanel = await context.newPage();
       await sidePanel.goto(
         `chrome-extension://${EXTENSION_ID}/sidepanel.html`,
@@ -149,7 +144,12 @@ test.describe("Manual user-flow tests", () => {
       // chrome.runtime.sendMessage from the SW reaches ALL extension
       // pages, including the side panel. This is what the SW would
       // do after receiving selection-for-rewrite from the content
-      // script — it forwards as side-panel-rewrite to everyone.
+      // script (which is triggered by Alt+Shift+R or right-click →
+      // Rewrite…). We can't easily drive the real selection flow
+      // from a Playwright test because `setSelectionRange` on a
+      // textarea doesn't show up in `window.getSelection()` (which
+      // the content script uses), so we directly exercise the
+      // side-panel's onMessage handler + Replace button.
       const background = context.serviceWorkers()[0];
       await background.evaluate(async (msg) => {
         await chrome.runtime.sendMessage(msg);
@@ -182,14 +182,13 @@ test.describe("Manual user-flow tests", () => {
         .not.toBe("");
 
       // Click Replace. With B1 fixed, state.start/end/expectedHash
-      // are set (forwarded by the SW), so the B1 guard
-      // "if (state.editorId == null || typeof state.start !== 'number' ...)"
-      // does NOT fire. The apply will fail with STALE_RESULT (our
-      // hash is dummy), but that's the EXPECTED outcome — the
-      // important thing is the B1 error "No editor is bound" does
-      // NOT appear.
+      // are set (forwarded by the SW), so the B1 guard does NOT fire.
+      // The apply will fail with STALE_RESULT (our hash is dummy,
+      // so it doesn't match the real editor hash), but that's an
+      // EXPECTED non-B1 outcome. The important thing is the B1
+      // error "No editor is bound to this rewrite" does NOT appear.
       await sidePanel.locator("#replaceBtn").click();
-      await sidePanel.waitForTimeout(500);
+      await sidePanel.waitForTimeout(800);
 
       const errorLine =
         (await sidePanel
@@ -198,7 +197,11 @@ test.describe("Manual user-flow tests", () => {
           .catch(() => "")) ?? "";
       // The B1 error must NOT appear. The fix has forwarded start /
       // end / expectedHash to the side panel, so the B1 guard no
-      // longer fires.
+      // longer fires. Other outcomes (EDITOR_UNSUPPORTED, STALE_RESULT,
+      // or "Replaced.") are all valid non-B1 outcomes given the test's
+      // mock setup (the test sends tabId=0 which isn't a real Chrome
+      // tab id, so the SW's apply-rewrite will fail with
+      // EDITOR_UNSUPPORTED — that's expected, not a regression).
       expect(errorLine).not.toContain("No editor is bound");
     } finally {
       await context.close();

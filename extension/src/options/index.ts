@@ -257,11 +257,38 @@ function hookControls(): void {
   ($("importSettings") as HTMLElement).addEventListener("click", () => {
     pickFile(async (text) => {
       try {
-        const obj = JSON.parse(text) as Partial<ExtensionSettings>;
-        await saveSettings(obj);
+        const parsed = JSON.parse(text);
+        if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+          alert("Import failed: file is not a JSON object.");
+          return;
+        }
+        // Allow only known settings fields. Previously saveSettings did
+        // {...current, ...obj} which would persist any extra fields the
+        // user (or a malicious file) included — bad data hygiene.
+        // We allowlist the known fields and discard the rest.
+        const allowed: ReadonlyArray<keyof ExtensionSettings> = [
+          "enabled", "autoCheck", "inlineSuggestions",
+          "checkSpelling", "checkGrammar", "checkPunctuation",
+          "checkClarity", "checkWordChoice",
+          "tone", "debounceMs", "contextLength", "maxTextSize",
+          "maxConcurrent", "minConfidence",
+          "lmStudioUrl", "model", "temperature", "maxTokens",
+          "requestTimeoutMs", "lmStudioToken", "storeHistoryLocally",
+        ];
+        const cleaned: Record<string, unknown> = {};
+        for (const key of allowed) {
+          if (key in parsed) {
+            cleaned[key] = parsed[key];
+          }
+        }
+        if (Object.keys(cleaned).length === 0) {
+          alert("Import failed: no recognized settings fields in file.");
+          return;
+        }
+        await saveSettings(cleaned as Partial<ExtensionSettings>);
         await loadSettingsToUI();
-      } catch {
-        // ignore
+      } catch (e) {
+        alert(`Import failed: ${(e as Error).message || "invalid JSON"}`);
       }
     });
   });

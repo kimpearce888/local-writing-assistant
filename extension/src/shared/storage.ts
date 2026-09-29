@@ -207,11 +207,12 @@ export async function clearDiagnostics(): Promise<void> {
  * from content scripts in every Chrome variant. Pause persists
  * across browser restarts — that's actually desirable behavior
  * for "I don't want suggestions on this site" (the user can
- * unpause explicitly).
+ * unpause explicitly via the per-site exclusion list).
  *
- * To prevent unbounded growth (a user might pause dozens of sites
- * over months), the cleanupOrphanedPauseStates() helper caps the
- * set to 200 hosts.
+ * Pause keys are capped by the natural cap of how many hosts a user
+ * would ever pause (typically a few dozen). If the user pauses
+ * hundreds of hosts, they can clear pause state via the
+ * options page's "Reset settings" button.
  */
 
 const PAUSE_KEY_PREFIX = "paused:";

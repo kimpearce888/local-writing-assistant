@@ -114,7 +114,19 @@ function Get-StableExtensionId {
   return $ExtensionId
 }
 
-function ord($c) { return [int][char]$c }
+# Use UTF-8 WITHOUT a BOM. Windows PowerShell 5.1's
+# `Set-Content -Encoding UTF8` writes a BOM-prefixed file. Go's
+# `encoding/json` rejects BOM-prefixed JSON — the native host would
+# fail to parse its own host-manifest.json. We use a .NET StreamWriter
+# with `new UTF8Encoding($false)` which never emits a BOM.
+function Write-FileNoBom {
+  param([string]$Path, [string]$Content)
+  $dir = Split-Path -Parent $Path
+  if ($dir -and -not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+  $enc = New-Object System.Text.UTF8Encoding($false)
+  $writer = New-Object System.IO.StreamWriter($Path, $false, $enc)
+  try { $writer.Write($Content) } finally { $writer.Close() }
+}
 
 # ---------------------------------------------------------------------------
 # 0. Detect environment
@@ -190,7 +202,7 @@ $manifest = @{
   type = "stdio"
   allowed_origins = @("chrome-extension://$extensionId/")
 }
-$manifest | ConvertTo-Json -Depth 5 | Set-Content -Path $manifestPath -Encoding UTF8
+$manifest | ConvertTo-Json -Depth 5 | Out-String | ForEach-Object { Write-FileNoBom -Path $manifestPath -Content $_ }
 Write-OK "Manifest written: $manifestPath (extension id = $extensionId)"
 
 # ---------------------------------------------------------------------------
@@ -250,15 +262,23 @@ if (Test-Path $manifestJsonPath) {
 # update.xml from file:// or http:// (other than localhost). The default
 # points at the GitHub Pages site this project publishes on every push
 # to main. Operators who self-host should override via -UpdateUrlBase.
+#
+# IMPORTANT: codebase in <updatecheck> MUST point at the .crx file
+# (a signed Chrome extension binary), NOT at update.xml. Chrome fetches
+# update.xml, reads the codebase URL, then fetches THAT as the .crx.
+# Pointing codebase at update.xml itself would be circular — Chrome
+# would download update.xml's XML body and try to parse it as a CRX3,
+# failing signature verification. Mode A would silently fail.
 $updateUrlBase = "https://kimpearce888.github.io/local-writing-assistant/update.xml"
+$crxUrlBase    = "https://kimpearce888.github.io/local-writing-assistant/extension.crx"
 $updateXml = @"
 <gupdate xmlns="http://www.google.com/update2/response" protocol="2.0">
   <app appid="$extensionId">
-    <updatecheck codebase="$updateUrlBase" version="$extVersion" />
+    <updatecheck codebase="$crxUrlBase" version="$extVersion" />
   </app>
 </gupdate>
 "@
-$updateXml | Set-Content -Path $updateXmlPath -Encoding UTF8
+$updateXml | Out-String | ForEach-Object { Write-FileNoBom -Path $updateXmlPath -Content $_ }
 Write-OK "update.xml written: $updateXmlPath (version=$extVersion, codebase=$updateUrlBase)"
 
 # ---------------------------------------------------------------------------
@@ -315,10 +335,16 @@ if ($policyRoot) {
       try {
         # Set-ItemProperty on a multi-string property preserves the
         # existing property's type and ACLs. -Force is NOT used.
+        # -Type MultiString is the canonical RegistryValueKind enum
+        # value for REG_MULTI_SZ (the type ExtensionInstallForcelist
+        # uses). 'StringArray' is NOT a valid RegistryValueKind in
+        # Windows PowerShell 5.1 (the version most Windows users
+        # have) — it throws "Cannot convert value 'StringArray' to
+        # type 'Microsoft.Win32.RegistryValueKind'".
         if ($existingValues.Count -eq 0) {
-          New-ItemProperty -Path $policyRoot -Name "ExtensionInstallForcelist" -Value $newValues -PropertyType StringArray | Out-Null
+          New-ItemProperty -Path $policyRoot -Name "ExtensionInstallForcelist" -Value $newValues -PropertyType MultiString | Out-Null
         } else {
-          Set-ItemProperty -Path $policyRoot -Name "ExtensionInstallForcelist" -Value $newValues -Type StringArray | Out-Null
+          Set-ItemProperty -Path $policyRoot -Name "ExtensionInstallForcelist" -Value $newValues -Type MultiString | Out-Null
         }
         Write-OK "Mode A policy entry added (index = $($newValues.Count - 1))."
         $modeA = $true

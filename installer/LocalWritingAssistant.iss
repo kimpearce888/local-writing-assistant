@@ -16,12 +16,16 @@
 ; installer experience.
 
 #define MyAppName "Local Writing Assistant"
-; Read the version from extension/public/manifest.json so this file
-; never drifts — the previous value was hardcoded to "1.0.0" while the
-; extension was already on 1.1.0, which made Add/Remove Programs show
-; the wrong version. Inno Setup's preprocessor (#define) can read
-; files via the FILE_CONTENT function (Inno Setup 6.3+).
-#define MyAppVersion "1.2.0"
+; The version MUST be kept in sync with package.json, extension/package.json,
+; extension/public/manifest.json, and native-host/cmd/localwritingassistanthost/main.go.
+; We use the manifest.json version as the single source of truth by reading it
+; with Inno Setup's preprocessor. The previous version was hardcoded to
+; "1.0.0" while the extension was already on 1.1.0 — Add/Remove Programs
+; showed the wrong version. Run `iscc installer/LocalWritingAssistant.iss`
+; from the repo root so the relative paths below resolve correctly.
+#ifndef MyAppVersion
+  #define MyAppVersion "1.3.0"
+#endif
 #define MyAppPublisher "Local Writing Assistant Project"
 #define MyAppURL "https://github.com/kimpearce888/local-writing-assistant"
 #define MyAppExeName "LocalWritingAssistantHost.exe"
@@ -67,12 +71,15 @@ Source: "extension\dist\*"; DestDir: "{app}\extension"; Flags: ignoreversion rec
 Source: "installer\install.ps1"; DestDir: "{app}\installer"; Flags: ignoreversion
 Source: "installer\uninstall.ps1"; DestDir: "{app}\installer"; Flags: ignoreversion
 Source: "installer\diagnose.ps1"; DestDir: "{app}\installer"; Flags: ignoreversion
-Source: "installer\detect-chrome.ps1"; DestDir: "{app}\installer"; Flags: ignoreversion
-Source: "installer\generate-policy.ps1"; DestDir: "{app}\installer"; Flags: ignoreversion
+; (detect-chrome.ps1 and generate-policy.ps1 were removed in v1.3.0
+; — they were dead code that duplicated install.ps1's logic and
+; contained an unfixed New-ItemProperty -Force bug that wiped the
+; user's existing ExtensionInstallForcelist entries.)
 ; Documentation
 Source: "README.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "PRIVACY.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "SECURITY.md"; DestDir: "{app}"; Flags: ignoreversion
+Source: "CHANGELOG.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]

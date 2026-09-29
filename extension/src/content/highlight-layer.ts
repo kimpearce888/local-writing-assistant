@@ -37,6 +37,7 @@ export class HighlightLayer {
   private overlay: HTMLDivElement | null = null;
   private clickHandler: ((e: Event) => void) | null = null;
   private scrollResizeHandler: (() => void) | null = null;
+  private resizeObserver: ResizeObserver | null = null;
 
   constructor(hostEl: HTMLElement) {
     this.hostEl = hostEl;
@@ -120,10 +121,12 @@ export class HighlightLayer {
     this.attachScrollResizeListener();
   }
 
-  /** Attach (once) a scroll + resize listener that re-syncs the overlay
-   *  position so markers stay glued to the editor when the page scrolls
-   *  or the viewport changes. Without this, any layout shift would leave
-   *  markers floating at stale coordinates. */
+  /** Attach (once) a scroll + resize + ResizeObserver listener that
+   *  re-syncs the overlay position so markers stay glued to the
+   *  editor when the page scrolls, the viewport changes, OR the
+   *  editor itself is repositioned by a layout shift (sticky header
+   *  reveal, accordion expand, side panel toggle, font reload —
+   *  very common in Gmail / Slack / Notion). */
   private attachScrollResizeListener(): void {
     if (this.scrollResizeHandler) return;
     const handler = (): void => this.syncOverlayPosition();
@@ -133,6 +136,22 @@ export class HighlightLayer {
     // bubble. passive:true so we never block scrolling.
     window.addEventListener("scroll", handler, { capture: true, passive: true });
     window.addEventListener("resize", handler, { passive: true });
+    // ResizeObserver on the editor element itself catches layout
+    // shifts that don't fire a scroll/resize event — sticky header
+    // reveal, accordion expand, side panel toggle, etc. The previous
+    // version only caught scroll + window resize, missing this whole
+    // class of layout shifts.
+    if (typeof ResizeObserver !== "undefined") {
+      try {
+        this.resizeObserver = new ResizeObserver(() => handler());
+        this.resizeObserver.observe(this.hostEl);
+        // Also observe the document body — a layout change anywhere
+        // on the page can shift the editor's position.
+        this.resizeObserver.observe(document.body);
+      } catch {
+        // ResizeObserver may throw if the element is detached; ignore.
+      }
+    }
   }
 
   clear(): void {
@@ -152,6 +171,10 @@ export class HighlightLayer {
       window.removeEventListener("scroll", this.scrollResizeHandler, { capture: true });
       window.removeEventListener("resize", this.scrollResizeHandler);
       this.scrollResizeHandler = null;
+    }
+    if (this.resizeObserver) {
+      this.resizeObserver.disconnect();
+      this.resizeObserver = null;
     }
     if (this.overlay) {
       this.overlay.remove();

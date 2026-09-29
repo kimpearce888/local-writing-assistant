@@ -110,7 +110,7 @@ foreach ($scope in @(
       if ($kept.Count -eq 0) {
         Remove-ItemProperty -Path $scope.Root -Name "ExtensionInstallForcelist" -ErrorAction Stop
       } else {
-        Set-ItemProperty -Path $scope.Root -Name "ExtensionInstallForcelist" -Value $kept -Type StringArray -ErrorAction Stop | Out-Null
+        Set-ItemProperty -Path $scope.Root -Name "ExtensionInstallForcelist" -Value $kept -Type MultiString -ErrorAction Stop | Out-Null
       }
       Write-OK "Removed $removed of our ExtensionInstallForcelist entries from $($scope.Label)."
     } else {

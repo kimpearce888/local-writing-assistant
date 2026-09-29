@@ -223,6 +223,20 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
       // triggered). Previously only {text, editorId} was forwarded,
       // so the side panel's Replace button always failed with
       // "No editor is bound to this rewrite."
+      //
+      // ALSO update SIDE_PANEL_TAB_KEY to the originating tab. Without
+      // this, the apply-rewrite case would still trust the OLD tab
+      // id (from when the side panel was first opened) and the
+      // replacement would go to the wrong tab if the user switched
+      // tabs, selected new text in tab B, ran a rewrite, and clicked
+      // Replace — they'd see EDITOR_UNSUPPORTED because tab A's
+      // editor doesn't have this editorId. sender.tab?.id is SW-trusted
+      // (Chrome populates it, the content script cannot forge it).
+      if (typeof sender.tab?.id === "number") {
+        chrome.storage.session
+          .set({ [SIDE_PANEL_TAB_KEY]: sender.tab.id })
+          .catch(() => undefined);
+      }
       chrome.runtime.sendMessage({
         type: "side-panel-rewrite",
         text: msg.text,
