@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"time"
 
 	"localwritingassistant.host/internal/lmstudio"
@@ -49,12 +50,16 @@ func run(in io.Reader, out io.Writer) error {
 		req, err := protocol.ReadRequest(in)
 		if err != nil {
 			if errors.Is(err, io.EOF) {
+				// Clean stdin close — Chrome shut down the host.
 				return nil
 			}
 			logging.Error("READ_FAILED", err.Error())
-			// We can't safely reply if we couldn't read a request ID,
-			// so just continue and try the next message.
-			continue
+			// Any other read error means the stream is desynchronized
+			// (e.g. io.ErrUnexpectedEOF from a truncated message body).
+			// We CANNOT safely continue — the next binary.Read would
+			// treat body bytes as a length prefix, leading to hangs or
+			// wrong-payload confusion. Exit and let Chrome respawn us.
+			return err
 		}
 		handleRequest(req, cfg, out)
 	}
@@ -78,7 +83,20 @@ func handleRequest(req *protocol.Request, cfg HostConfig, out io.Writer) {
 		})
 	case "get_models":
 		if mock.Enabled() {
-			writeOK(out, rid, map[string]any{"raw": mock.ModelsResponse(), "mock": true})
+			// Return the SAME shape as the real get_models handler
+			// ({models: [{id, ...}]}) so the extension's parsing
+			// code in service-worker.ts handleGetModels works
+			// identically in mock and real modes. Previously the
+			// mock returned {raw: "...", mock: true} which the
+			// extension read as 'no models'.
+			var data any
+			_ = json.Unmarshal([]byte(mock.ModelsResponse()), &data)
+			if m, ok := data.(map[string]any); ok {
+				m["mock"] = true
+				writeOK(out, rid, m)
+			} else {
+				writeOK(out, rid, map[string]any{"models": []any{}, "mock": true})
+			}
 			return
 		}
 		handleGetModels(req, rid, cfg, out)
@@ -314,12 +332,7 @@ func classifyLMError(err error) string {
 }
 
 func contains(s, sub string) bool {
-	for i := 0; i+len(sub) <= len(s); i++ {
-		if s[i:i+len(sub)] == sub {
-			return true
-		}
-	}
-	return false
+	return strings.Contains(s, sub)
 }
 
 func writeOK(w io.Writer, rid string, data any) {

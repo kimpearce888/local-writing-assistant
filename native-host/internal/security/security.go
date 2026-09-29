@@ -14,6 +14,7 @@ import (
 	"net"
 	"net/url"
 	"strings"
+	"unicode/utf8"
 )
 
 // Allowed LM Studio hosts. Anything else (including 0.0.0.0, LAN IPs,
@@ -59,7 +60,7 @@ func SanitizeLMStudioURL(raw string) (string, error) {
 	if u.Scheme != "http" && u.Scheme != "https" {
 		return "", errors.New("only http(s) schemes are permitted")
 	}
-	host := u.Hostname()
+	host := strings.ToLower(u.Hostname())
 	if !allowedHosts[host] {
 		// Allow any IPv4/IPv6 loopback literal as well (e.g. 127.x.y.z).
 		if ip := net.ParseIP(host); ip != nil && ip.IsLoopback() {
@@ -77,7 +78,10 @@ func SanitizeLMStudioURL(raw string) (string, error) {
 			port = "80"
 		}
 	}
-	return fmt.Sprintf("%s://%s:%s", u.Scheme, host, port), nil
+	// net.JoinHostPort adds brackets around IPv6 literals — without
+	// those, an IPv6 base URL like http://::1:1234 is malformed and
+	// every subsequent http.NewRequest would fail.
+	return fmt.Sprintf("%s://%s", u.Scheme, net.JoinHostPort(host, port)), nil
 }
 
 // IsAllowedCommand returns true if `cmd` is one of the known commands
@@ -92,15 +96,26 @@ func IsAllowedCommand(cmd string) bool {
 }
 
 // ClampText returns s truncated to maxBytes. Returns an error if s is
-// already too large to ever be accepted.
+// already too large to ever be accepted. The truncation is rune-aware
+// so we never slice a multi-byte UTF-8 character in half (which would
+// produce invalid UTF-8 and could confuse the LLM or break JSON
+// marshalling downstream).
 func ClampText(s string, maxBytes int) (string, error) {
 	if len(s) > maxBytes {
-		// Truncate, but never return more than maxBytes.
+		// Suspiciously large — reject outright so we don't allocate.
 		if len(s) > maxBytes*2 {
-			// Suspiciously large — reject outright so we don't allocate.
 			return "", fmt.Errorf("text length %d exceeds %d", len(s), maxBytes)
 		}
-		return s[:maxBytes], nil
+		// Truncate at the last rune boundary at or before maxBytes.
+		truncated := s[:maxBytes]
+		// Walk back until we're on a rune start byte.
+		for len(truncated) > 0 && !utf8.ValidString(truncated) {
+			// Lop off the last byte and try again. We're guaranteed
+			// to land on a valid boundary eventually because at byte
+			// 0 the empty string is trivially valid.
+			truncated = truncated[:len(truncated)-1]
+		}
+		return truncated, nil
 	}
 	return s, nil
 }
