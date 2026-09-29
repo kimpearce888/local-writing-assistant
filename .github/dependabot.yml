@@ -69,12 +69,18 @@ updates:
     commit-message:
       prefix: "deps(tests)"
 
-  # GitHub Actions themselves
+  # GitHub Actions themselves. Group ALL action updates into a single
+  # PR so we don't get one branch per action (was producing 3-5
+  # branches per week — the maintainer prefers to keep the repo
+  # branchless except for main, so consolidating is the right call).
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: monthly
-    open-pull-requests-limit: 3
+    open-pull-requests-limit: 1
     labels: ["dependencies", "ci"]
     commit-message:
       prefix: "deps(ci)"
+    groups:
+      all-actions:
+        patterns: ["*"]

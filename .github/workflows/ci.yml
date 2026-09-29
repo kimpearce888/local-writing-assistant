@@ -21,7 +21,7 @@ jobs:
     name: Extension (typecheck + tests + audits)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup Node
         uses: actions/setup-node@v7
@@ -85,7 +85,7 @@ jobs:
       run:
         working-directory: native-host
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup Go
         uses: actions/setup-go@v7
@@ -116,7 +116,7 @@ jobs:
       run:
         working-directory: tests
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup Go
         uses: actions/setup-go@v7
@@ -135,7 +135,7 @@ jobs:
       run:
         working-directory: native-host
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup Go
         uses: actions/setup-go@v7
@@ -169,7 +169,7 @@ jobs:
     name: E2E browser tests (Playwright)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup Node
         uses: actions/setup-node@v7
