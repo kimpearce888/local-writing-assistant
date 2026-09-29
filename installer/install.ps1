@@ -214,8 +214,17 @@ if (-not (Test-Path $srcExt)) {
   Write-Fail "Could not find extension/ folder in the installer package."
   exit 1
 }
-# Recursively copy.
-robocopy $srcExt $installExtDir /E /NFL /NDL /NJH /NJS /NP | Out-Null
+# Recursively copy. robocopy exit codes 0-3 are success, 4+ are
+# warnings/errors — we must check the exit code, otherwise a failed
+# copy (e.g. permission denied on a file) would silently succeed.
+$robocopyArgs = @($srcExt, $installExtDir, '/E', '/NFL', '/NDL', '/NJH', '/NJS', '/NP')
+$robocopyOutput = & robocopy @robocopyArgs
+$robocopyExit = $LASTEXITCODE
+if ($robocopyExit -ge 8) {
+  Write-Fail "robocopy failed with exit code $robocopyExit"
+  Write-Fail ($robocopyOutput | Out-String)
+  exit 1
+}
 Write-OK "Extension files copied to $installExtDir"
 
 # ---------------------------------------------------------------------------
@@ -223,21 +232,39 @@ Write-OK "Extension files copied to $installExtDir"
 # ---------------------------------------------------------------------------
 Write-Step "Generating update.xml…"
 $updateXmlPath = Join-Path $installUpdateDir "update.xml"
-$codebase = "file:///$($installExtDir -replace '\\','/')/extension.crx"
+# Read the actual extension version from manifest.json so the update
+# endpoint advertises the version Chrome is about to install. Hardcoding
+# version="1.0.0" while shipping a different version makes Chrome refuse
+# to install because the update check sees an older / mismatched version.
+$manifestJsonPath = Join-Path $installExtDir "manifest.json"
+$extVersion = "0.0.0"
+if (Test-Path $manifestJsonPath) {
+  try {
+    $m = Get-Content $manifestJsonPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ($m.version) { $extVersion = $m.version }
+  } catch {
+    Write-Warn2 "Could not parse manifest.json — using placeholder version."
+  }
+}
+# Mode A update servers MUST be HTTPS — Chrome refuses to fetch an
+# update.xml from file:// or http:// (other than localhost). The default
+# points at the GitHub Pages site this project publishes on every push
+# to main. Operators who self-host should override via -UpdateUrlBase.
+$updateUrlBase = "https://kimpearce888.github.io/local-writing-assistant/update.xml"
 $updateXml = @"
 <gupdate xmlns="http://www.google.com/update2/response" protocol="2.0">
   <app appid="$extensionId">
-    <updatecheck codebase="$codebase" version="1.0.0" />
+    <updatecheck codebase="$updateUrlBase" version="$extVersion" />
   </app>
 </gupdate>
 "@
 $updateXml | Set-Content -Path $updateXmlPath -Encoding UTF8
-Write-OK "update.xml written: $updateXmlPath"
+Write-OK "update.xml written: $updateXmlPath (version=$extVersion, codebase=$updateUrlBase)"
 
 # ---------------------------------------------------------------------------
 # 9. Mode A: try to register enterprise force-install policy.
 #    We check both HKCU (works for user-scope managed Chrome) and HKLM.
-#    We NEVER overwrite existing policy entries — we only add our own.
+#    We NEVER overwrite existing policy entries — we only append ours.
 # ---------------------------------------------------------------------------
 Write-Step "Detecting whether Chrome accepts enterprise policy in this user context…"
 $policyRoot = $null
@@ -252,35 +279,52 @@ elseif (Test-Path $ChromePolicy_Machine) {
 
 $modeA = $false
 if ($policyRoot) {
-  # Read existing ExtensionInstallForcelist (a dictionary of 1="...", 2="...").
-  $existing = @{}
+  # Read existing ExtensionInstallForcelist values (stored as a REG_MULTI_SZ
+  # string array). We MUST preserve existing entries — operators may have
+  # other extensions force-installed (corporate SSO, password managers, etc.)
+  # and wiping them would be a serious data-loss / outage bug.
+  #
+  # The previous version of this code called New-ItemProperty -Force,
+  # which DELETES the existing property and recreates it with only the
+  # single new value — destroying every other force-install entry. The
+  # fix below reads the existing array, appends our entry only if it
+  # isn't already present, and writes the full array back with
+  # Set-ItemProperty (which does NOT use -Force, so it preserves the
+  # property's existing ACLs and other metadata).
+  $existingValues = @()
   try {
-    $existing = Get-ItemProperty -Path $policyRoot -Name "ExtensionInstallForcelist" -ErrorAction SilentlyContinue
-  } catch { $existing = $null }
+    $prop = Get-ItemProperty -Path $policyRoot -Name "ExtensionInstallForcelist" -ErrorAction SilentlyContinue
+    if ($prop) {
+      $val = $prop.ExtensionInstallForcelist
+      if ($val) { $existingValues = @($val) }
+    }
+  } catch { $existingValues = @() }
 
-  # Decide whether we can write to the policy. If admin or HKCU, yes.
   $canWrite = $false
   if ($policyRoot -eq $ChromePolicy_User) { $canWrite = $true }
   elseif (Test-Admin) { $canWrite = $true }
 
   if ($canWrite) {
     Write-Step "Registering extension in ExtensionInstallForcelist…"
-    # Pick the next free index.
-    $nextIdx = 1
-    if ($existing) {
-      $props = $existing.PSObject.Properties | Where-Object { $_.Name -match "^\d+$" }
-      foreach ($p in $props) {
-        $idx = [int]$p.Name
-        if ($idx -ge $nextIdx) { $nextIdx = $idx + 1 }
-      }
-    }
-    $entry = "$extensionId;$codebase"
-    try {
-      New-ItemProperty -Path $policyRoot -Name "ExtensionInstallForcelist" -Value $entry -PropertyType StringArray -Force | Out-Null
-      Write-OK "Mode A policy entry created (ExtensionInstallForcelist index = $nextIdx)."
+    $entry = "$extensionId;$updateUrlBase"
+    if ($existingValues -contains $entry) {
+      Write-OK "Mode A policy entry already present — no change needed."
       $modeA = $true
-    } catch {
-      Write-Warn2 "Failed to write ExtensionInstallForcelist: $_"
+    } else {
+      $newValues = @($existingValues) + $entry
+      try {
+        # Set-ItemProperty on a multi-string property preserves the
+        # existing property's type and ACLs. -Force is NOT used.
+        if ($existingValues.Count -eq 0) {
+          New-ItemProperty -Path $policyRoot -Name "ExtensionInstallForcelist" -Value $newValues -PropertyType StringArray | Out-Null
+        } else {
+          Set-ItemProperty -Path $policyRoot -Name "ExtensionInstallForcelist" -Value $newValues -Type StringArray | Out-Null
+        }
+        Write-OK "Mode A policy entry added (index = $($newValues.Count - 1))."
+        $modeA = $true
+      } catch {
+        Write-Warn2 "Failed to update ExtensionInstallForcelist: $_"
+      }
     }
   }
 }

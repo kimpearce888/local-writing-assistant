@@ -91,9 +91,16 @@ function stage() {
   mkdirp(path.join(top, "update"));
   mkdirp(path.join(top, "diagnostics"));
 
-  // Documentation.
-  for (const f of ["README.md", "PRIVACY.md", "SECURITY.md", "DEVELOPMENT.md"]) {
-    fs.copyFileSync(path.join(ROOT, f), path.join(top, f));
+  // Documentation. LICENSE MUST be included so the ZIP is MIT-compliant
+  // — previously the ZIP shipped without LICENSE, which is a license
+  // violation (the MIT license requires that "the above copyright
+  // notice and this permission notice shall be included in all copies
+  // or substantial portions of the Software").
+  for (const f of ["README.md", "PRIVACY.md", "SECURITY.md", "DEVELOPMENT.md", "LICENSE", "CHANGELOG.md"]) {
+    const src = path.join(ROOT, f);
+    if (fs.existsSync(src)) {
+      fs.copyFileSync(src, path.join(top, f));
+    }
   }
 
   // Top-level launcher .bat files (copies of installer/*.bat).
