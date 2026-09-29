@@ -8,7 +8,6 @@
  */
 
 import { RewriteOperation } from "../shared/types";
-import { hashText } from "../shared/text-utils";
 
 const $ = (id: string) => document.getElementById(id) as HTMLElement | null;
 
@@ -28,7 +27,9 @@ async function getCurrentTabSelection(): Promise<void> {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab?.id) return;
   state.tabId = tab.id;
-  // Ask the content script for its current selection.
+  // Ask the content script for its current selection. The content
+  // script's reply will arrive asynchronously via the side-panel-rewrite
+  // message (forwarded by the SW). We don't need to await it here.
   chrome.tabs.sendMessage(tab.id, { type: "selection-for-rewrite-query" }).catch(() => undefined);
 }
 
@@ -89,11 +90,14 @@ function hookActions(): void {
       setErr("Nothing to replace with. Run a rewrite first.");
       return;
     }
-    if (!state.editorId || typeof state.start !== "number" || typeof state.end !== "number") {
-      setErr("No editor is bound to this rewrite.");
+    if (state.editorId == null || typeof state.start !== "number" || typeof state.end !== "number") {
+      setErr("No editor is bound to this rewrite. Select text in the page first.");
       return;
     }
-    const expectedHash = state.expectedHash ?? hashText(state.text);
+    if (!state.expectedHash) {
+      setErr("Cannot apply rewrite — text hash is missing. Please re-select the text and try again.");
+      return;
+    }
     const res = (await chrome.runtime.sendMessage({
       type: "side-panel-apply-rewrite",
       tabId: state.tabId,
@@ -101,7 +105,7 @@ function hookActions(): void {
       start: state.start,
       end: state.end,
       replacement: state.rewritten,
-      expectedHash,
+      expectedHash: state.expectedHash,
     })) as { ok: boolean; error?: string } | null;
     if (!res?.ok) {
       setErr(res?.error ?? "apply failed");

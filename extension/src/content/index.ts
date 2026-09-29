@@ -3,8 +3,8 @@
  *
  * Responsibilities:
  *  - detect focusable editors on the page
- *  - attach an adapter per editor
- *  - debounce analysis on input
+ *  - attach an adapter per editor (and properly detach on cleanup)
+ *  - debounce analysis on input (per-editor, not global)
  *  - route messages to/from the service worker
  *  - render highlights + suggestion popup
  *  - apply replacements with stale-result protection
@@ -18,96 +18,186 @@ import { EditorAdapter } from "./adapters/adapter";
 import { HighlightLayer } from "./highlight-layer";
 import { SuggestionPopup } from "./suggestion-popup";
 import { SuggestionEngine, TaggedIssue } from "./suggestion-engine";
-import { isTabPaused, isSiteExcluded, getSettings } from "../shared/storage";
-import { hashText, normalizeText } from "../shared/text-utils";
+import { isSiteExcluded, getSettings } from "../shared/storage";
+import { hashText } from "../shared/text-utils";
 
-const adapters = new Map<HTMLElement, EditorAdapter>();
-const highlights = new Map<HTMLElement, HighlightLayer>();
+interface EditorEntry {
+  adapter: EditorAdapter;
+  layer: HighlightLayer;
+  /** Unsubscribers for adapter.onInput + element focus/blur listeners. */
+  detach: () => void;
+  /** Per-editor debounce timer so typing in editor A doesn't reset
+   *  editor B's pending analysis. */
+  debounceTimer: ReturnType<typeof setTimeout> | null;
+  /** Unsubscribe for the layer's click handler so we don't stack a new
+   *  listener on every re-analysis. */
+  unsubscribeClick: (() => void) | null;
+}
+
+const editors = new Map<HTMLElement, EditorEntry>();
 let popup: SuggestionPopup | null = null;
 let engine: SuggestionEngine;
-let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 let currentEditor: EditorAdapter | null = null;
 const issuesByEditor = new Map<string, TaggedIssue[]>();
 
 function isAllowedPage(): boolean {
+  // chrome:// and chrome-extension:// pages are not user content.
   if (location.protocol === "chrome:" || location.protocol === "chrome-extension:") {
     return false;
   }
-  if (location.protocol === "file:") return true;
   return true;
 }
 
 async function shouldRunOnSite(): Promise<boolean> {
   if (!isAllowedPage()) return false;
-  if (isTabPaused(_tabId())) return false;
+  // Pause state lives in chrome.storage.session (shared between SW and
+  // content script). The previous in-memory Set was per-bundle, so the
+  // SW's view and the content script's view diverged.
+  if (await isTabPaused()) return false;
   if (await isSiteExcluded(location.host)) return false;
   return true;
 }
 
-function _tabId(): number {
-  // best-effort: tab id isn't directly available in content scripts,
-  // but background side tracks via the message sender.
-  return -1;
+/** Look up this tab's pause state from session storage. The tab id is
+ *  not directly available in a content script, so we store pause state
+ *  keyed on the tab URL host instead — that's also more meaningful
+ *  (pausing "slack.com" applies to all Slack tabs, not just one). */
+async function isTabPaused(): Promise<boolean> {
+  try {
+    const key = `paused:${location.host}`;
+    const res = await chrome.storage.session.get(key);
+    return res[key] === true;
+  } catch {
+    return false;
+  }
 }
 
 function registerEditor(el: HTMLElement): void {
-  if (adapters.has(el)) return;
+  if (editors.has(el)) return;
   const adapter = getAdapterForElement(el);
   if (!adapter) return;
-  adapters.set(el, adapter);
   const layer = new HighlightLayer(el);
-  highlights.set(el, layer);
-  adapter.onInput(() => {
-    scheduleAnalysis(adapter);
-  });
-  el.addEventListener("focus", () => {
+
+  // Adapter input + element focus/blur listeners. We MUST capture the
+  // unsubscribe functions and call them on cleanup; otherwise SPAs
+  // (Gmail, Slack, Notion) that never do a full page navigation would
+  // leak listeners across view switches.
+  const inputUnsub = adapter.onInput(() => scheduleAnalysis(adapter));
+  const focusUnsub = onFocus(el, () => {
     currentEditor = adapter;
   });
-  el.addEventListener("blur", () => {
+  const blurUnsub = onBlur(el, () => {
     // Keep the editor reference so highlights can persist; just debounce.
     scheduleAnalysis(adapter);
   });
+
+  const entry: EditorEntry = {
+    adapter,
+    layer,
+    detach: () => {
+      inputUnsub();
+      focusUnsub();
+      blurUnsub();
+      entry.unsubscribeClick?.();
+      entry.unsubscribeClick = null;
+      if (entry.debounceTimer) {
+        clearTimeout(entry.debounceTimer);
+        entry.debounceTimer = null;
+      }
+      layer.dispose();
+    },
+    debounceTimer: null,
+    unsubscribeClick: null,
+  };
+  editors.set(el, entry);
 }
 
+/** Helper: add an event listener and return an unsubscribe function. */
+function onFocus(el: HTMLElement, cb: () => void): () => void {
+  el.addEventListener("focus", cb);
+  return () => el.removeEventListener("focus", cb);
+}
+function onBlur(el: HTMLElement, cb: () => void): () => void {
+  el.addEventListener("blur", cb);
+  return () => el.removeEventListener("blur", cb);
+}
+
+/** Per-editor debounced analysis. The previous global debounce timer
+ *  meant that typing in editor A then switching to editor B would
+ *  reset A's pending analysis and only ever analyze B. */
 function scheduleAnalysis(adapter: EditorAdapter): void {
-  if (debounceTimer) clearTimeout(debounceTimer);
-  debounceTimer = setTimeout(() => {
+  let entry: EditorEntry | undefined;
+  for (const e of editors.values()) {
+    if (e.adapter === adapter) {
+      entry = e;
+      break;
+    }
+  }
+  if (!entry) return;
+  if (entry.debounceTimer) clearTimeout(entry.debounceTimer);
+  entry.debounceTimer = setTimeout(() => {
+    entry!.debounceTimer = null;
     engine.analyze(adapter).catch(() => {
       // errors are surfaced through cbs.onAnalyzeError
     });
   }, 700);
 }
 
+let rescanTimer: ReturnType<typeof setTimeout> | null = null;
+/** Debounced rescan: a single MutationObserver event can fire hundreds
+ *  of times per second on a SPA like Notion. Without a debounce we'd
+ *  run querySelectorAll over the whole document on every mutation,
+ *  causing severe jank. */
+function scheduleRescan(): void {
+  if (rescanTimer) return;
+  rescanTimer = setTimeout(() => {
+    rescanTimer = null;
+    rescanPage().catch(() => undefined);
+  }, 250);
+}
+
 async function rescanPage(): Promise<void> {
   if (!(await shouldRunOnSite())) {
-    for (const layer of highlights.values()) layer.dispose();
-    highlights.clear();
-    adapters.clear();
+    for (const entry of editors.values()) entry.detach();
+    editors.clear();
     return;
   }
+  // Match both contenteditable="true" (explicit value) and bare
+  // contenteditable / contenteditable="" (boolean attribute — same
+  // semantics per HTML spec).
   const candidates = Array.from(
     document.querySelectorAll<HTMLElement>(
-      "textarea, input[type='text'], input[type='email'], input[type='search'], input[type='url'], input[type='tel'], [contenteditable='true']",
+      "textarea, input[type='text'], input[type='email'], input[type='search'], input[type='url'], input[type='tel'], [contenteditable]",
     ),
   );
-  for (const el of candidates) registerEditor(el);
+  // Remove disposed editors first.
+  for (const [el, entry] of editors) {
+    if (!el.isConnected) {
+      entry.detach();
+      editors.delete(el);
+    }
+  }
+  for (const el of candidates) {
+    registerEditor(el);
+  }
 }
 
 function onIssueMarkerClick(editorId: string, issueId: string): void {
   const list = issuesByEditor.get(editorId) ?? [];
   const issue = list.find((x) => x.id === issueId);
   if (!issue) return;
-  const adapter = [...adapters.values()].find(
-    (a) => a.getEditorIdentity() === editorId,
+  const entry = [...editors.values()].find(
+    (e) => e.adapter.getEditorIdentity() === editorId,
   );
-  if (!adapter) return;
-  // Stale check: recompute the hash the same way the engine does —
-  // normalizeText(getText()) + "|" + tone + "|" + model. If the
-  // editor's text has changed since the issue was generated, the
-  // hashes won't match and we show a stale-suggestion popup instead.
+  if (!entry) return;
+  const adapter = entry.adapter;
+  // Stale check: same hash function as the engine — hash of raw text +
+  // "|" + tone + "|" + model. If the editor's text has changed since
+  // the issue was generated, the hashes won't match and we show a
+  // stale-suggestion popup instead.
   void getSettings().then((s) => {
     const currentHash = hashText(
-      normalizeText(adapter.getText()) + "|" + s.tone + "|" + s.model,
+      adapter.getText() + "|" + s.tone + "|" + s.model,
     );
     if (currentHash !== issue.textHash) {
       showStalePopup();
@@ -138,7 +228,6 @@ function showStalePopup(): void {
       onClose: () => popup?.hide(),
     });
   }
-  // Show a synthetic stale-issue popup.
   popup.show(
     {
       id: "stale",
@@ -158,20 +247,20 @@ function showStalePopup(): void {
 }
 
 function handleReplace(issue: TaggedIssue): void {
-  const adapter = [...adapters.values()].find(
-    (a) => a.getEditorIdentity() === issue.editorId,
+  const entry = [...editors.values()].find(
+    (e) => e.adapter.getEditorIdentity() === issue.editorId,
   );
-  if (!adapter) {
+  if (!entry) {
     popup?.hide();
     return;
   }
-  // Re-validate against current text (section 15, section 16). The
-  // hash function must match what the engine uses — otherwise every
-  // replacement would falsely fail as stale.
+  const adapter = entry.adapter;
+  // Re-validate against current text. The hash function MUST match
+  // the engine's hash, otherwise every replacement would falsely fail.
   void getSettings().then((s) => {
     const currentText = adapter.getText();
     const currentHash = hashText(
-      normalizeText(currentText) + "|" + s.tone + "|" + s.model,
+      currentText + "|" + s.tone + "|" + s.model,
     );
     if (currentHash !== issue.textHash) {
       popup?.hide();
@@ -186,13 +275,13 @@ function handleReplace(issue: TaggedIssue): void {
       return;
     }
     adapter.replaceRange(issue.start, issue.end, issue.replacement);
-    // Remove the issue, re-analyze.
+    // Remove the issue, re-render, re-analyze.
     const list = issuesByEditor.get(issue.editorId) ?? [];
     issuesByEditor.set(
       issue.editorId,
       list.filter((x) => x.id !== issue.id),
     );
-    const layer = highlights.get(adapter.el);
+    const layer = editors.get(adapter.el)?.layer;
     if (layer) layer.render(adapter, issuesByEditor.get(issue.editorId) ?? []);
     popup?.hide();
     // Re-analyze the editor (debounced).
@@ -207,9 +296,17 @@ function handleIgnore(issue: TaggedIssue): void {
     issue.editorId,
     list.filter((x) => x.id !== issue.id),
   );
-  if (currentEditor) {
-    const layer = highlights.get(currentEditor.el);
-    if (layer) layer.render(currentEditor, issuesByEditor.get(issue.editorId) ?? []);
+  // Render against the *issue's* editor, not currentEditor. If the user
+  // has switched editors since the popup was shown, currentEditor would
+  // be a different adapter and we'd update the wrong layer.
+  const entry = [...editors.values()].find(
+    (e) => e.adapter.getEditorIdentity() === issue.editorId,
+  );
+  if (entry) {
+    entry.layer.render(
+      entry.adapter,
+      issuesByEditor.get(issue.editorId) ?? [],
+    );
   }
   popup?.hide();
 }
@@ -219,7 +316,6 @@ function handleIgnoreWord(issue: TaggedIssue): void {
   import("../shared/storage").then((mod) =>
     mod.ignoreWord(issue.original),
   );
-  // Also remove this specific issue from the list.
   handleIgnore(issue);
 }
 
@@ -230,6 +326,11 @@ function handleAddToDict(issue: TaggedIssue): void {
   handleIgnore(issue);
 }
 
+/** When the user opens the side panel for a rewrite, we send the
+ *  selected text + the editor offsets + a hash of the FULL editor text
+ *  so the apply step can verify the editor hasn't changed. Previously
+ *  we sent only {text, editorId} and the side panel's Replace button
+ *  always failed with "No editor is bound to this rewrite." */
 function handleSelectionForRewrite(): void {
   const sel = window.getSelection();
   if (!sel || sel.isCollapsed) return;
@@ -244,10 +345,20 @@ function handleSelectionForRewrite(): void {
   const adapter = getAdapterForElement(editorEl);
   if (!adapter) return;
   currentEditor = adapter;
-  chrome.runtime.sendMessage({
-    type: "selection-for-rewrite",
-    text: sel.toString(),
-    editorId: adapter.getEditorIdentity(),
+  const selOffsets = adapter.getSelection();
+  void getSettings().then((s) => {
+    const fullText = adapter.getText();
+    const expectedHash = hashText(
+      fullText + "|" + s.tone + "|" + s.model,
+    );
+    chrome.runtime.sendMessage({
+      type: "selection-for-rewrite",
+      text: sel.toString(),
+      editorId: adapter.getEditorIdentity(),
+      start: selOffsets.start,
+      end: selOffsets.end,
+      expectedHash,
+    }).catch(() => undefined);
   });
 }
 
@@ -259,15 +370,19 @@ engine = new SuggestionEngine({
   },
   onAnalyzeComplete: (result) => {
     issuesByEditor.set(result.editorId, result.issues);
-    const adapter = [...adapters.values()].find(
-      (a) => a.getEditorIdentity() === result.editorId,
+    const entry = [...editors.values()].find(
+      (e) => e.adapter.getEditorIdentity() === result.editorId,
     );
-    if (adapter) {
-      const layer = highlights.get(adapter.el);
-      if (layer) {
-        layer.render(adapter, result.issues);
-        layer.onClick((id) => onIssueMarkerClick(result.editorId, id));
-      }
+    if (entry) {
+      // Replace any previous click handler before attaching a new
+      // one — HighlightLayer.onClick now removes the previous listener
+      // internally, but we still capture the returned unsubscribe so
+      // cleanup on dispose is correct.
+      entry.unsubscribeClick?.();
+      entry.layer.render(entry.adapter, result.issues);
+      entry.unsubscribeClick = entry.layer.onClick((id) =>
+        onIssueMarkerClick(result.editorId, id),
+      );
     }
     chrome.runtime
       .sendMessage({ type: "status", state: "done", count: result.issues.length })
@@ -286,9 +401,10 @@ engine = new SuggestionEngine({
   if (!(await shouldRunOnSite())) return;
   await rescanPage();
 
-  // Watch for dynamically added editors.
+  // Watch for dynamically added editors. Debounced so SPAs that fire
+  // hundreds of mutations per second don't cripple the page.
   const observer = new MutationObserver(() => {
-    rescanPage().catch(() => undefined);
+    scheduleRescan();
   });
   observer.observe(document.documentElement, {
     subtree: true,
@@ -308,26 +424,43 @@ engine = new SuggestionEngine({
       return true;
     }
     if (msg?.type === "apply-rewrite") {
-      const { editorId, start, end, replacement, expectedHash } = msg;
-      const adapter = [...adapters.values()].find(
-        (a) => a.getEditorIdentity() === editorId,
+      const { editorId, start, end, replacement, expectedHash } = msg as {
+        editorId: string;
+        start: number;
+        end: number;
+        replacement: string;
+        expectedHash: string;
+      };
+      const entry = [...editors.values()].find(
+        (e) => e.adapter.getEditorIdentity() === editorId,
       );
-      if (!adapter) {
+      if (!entry) {
         reply({ ok: false, error: "EDITOR_UNSUPPORTED" });
         return true;
       }
-      const currentText = adapter.getText();
-      const currentHash = hashText(currentText);
-      if (currentHash !== expectedHash) {
-        reply({ ok: false, error: "STALE_RESULT" });
-        return true;
-      }
-      try {
-        adapter.replaceRange(start, end, replacement);
-        reply({ ok: true });
-      } catch {
-        reply({ ok: false, error: "EDITOR_UNSUPPORTED" });
-      }
+      const adapter = entry.adapter;
+      // Use the SAME hash function as the engine: raw text + "|" + tone
+      // + "|" + model. The previous code used hashText(currentText)
+      // without tone or model, which never matched the expectedHash
+      // computed by the engine.
+      getSettings()
+        .then((s) => {
+          const currentText = adapter.getText();
+          const currentHash = hashText(
+            currentText + "|" + s.tone + "|" + s.model,
+          );
+          if (currentHash !== expectedHash) {
+            reply({ ok: false, error: "STALE_RESULT" });
+            return;
+          }
+          try {
+            adapter.replaceRange(start, end, replacement);
+            reply({ ok: true });
+          } catch {
+            reply({ ok: false, error: "EDITOR_UNSUPPORTED" });
+          }
+        })
+        .catch(() => reply({ ok: false, error: "EDITOR_UNSUPPORTED" }));
       return true;
     }
     if (msg?.type === "ping") {
@@ -345,22 +478,24 @@ engine = new SuggestionEngine({
       const editorEl = target ? findEditorAt(target) : null;
       if (editorEl) {
         registerEditor(editorEl);
-        const adapter = adapters.get(editorEl);
-        if (adapter) {
-          currentEditor = adapter;
-          scheduleAnalysis(adapter);
+        const entry = editors.get(editorEl);
+        if (entry) {
+          currentEditor = entry.adapter;
+          scheduleAnalysis(entry.adapter);
         }
       }
     },
     true,
   );
 
-  // Disconnect observers when the document is unloaded.
+  // Disconnect observers + detach editors when the document is unloaded.
+  // SPA route changes (pushState/replaceState) don't fire beforeunload,
+  // but the focusin listener + observer.disconnect() on actual unload
+  // is the best we can do without intercepting History API.
   window.addEventListener("beforeunload", () => {
     observer.disconnect();
-    for (const layer of highlights.values()) layer.dispose();
-    highlights.clear();
-    adapters.clear();
+    for (const entry of editors.values()) entry.detach();
+    editors.clear();
     popup?.hide();
   });
 })();

@@ -24,7 +24,7 @@ import {
 } from "../shared/types";
 import { buildGrammarPrompt } from "../shared/prompts";
 import { parseGrammarResponse } from "../shared/ai-validation";
-import { hashText, normalizeText, splitSentences } from "../shared/text-utils";
+import { hashText } from "../shared/text-utils";
 import { getSettings, getDictionary, getIgnoredWords, ignoreSuggestionOnce } from "../shared/storage";
 
 /**
@@ -98,7 +98,12 @@ export class SuggestionEngine {
   async analyze(adapter: EditorAdapter): Promise<void> {
     const settings = await getSettings();
     if (!settings.enabled || !settings.autoCheck) return;
-    const text = normalizeText(adapter.getText());
+    // IMPORTANT: use raw editor text for hashing + offsets. We must NOT
+    // normalize here, because the offsets returned by the LLM refer to
+    // the same string we sent it. If we normalized for hashing but sent
+    // raw (or vice versa) the slice() at apply time would land on the
+    // wrong characters whenever the editor's text contains control chars.
+    const text = adapter.getText();
     if (text.length === 0 || text.length > settings.maxTextSize) {
       if (text.length > settings.maxTextSize) {
         this.cbs.onAnalyzeError(
@@ -153,7 +158,14 @@ export class SuggestionEngine {
         err?.message ?? "unknown error",
       );
     } finally {
-      this.inFlight.delete(adapter.getEditorIdentity());
+      // Only delete the in-flight entry if it still points at OUR
+      // controller. If a newer analyze() has already swapped in a
+      // different controller for this editor, deleting by key would
+      // wrongly cancel the newer request's tracking entry.
+      const current = this.inFlight.get(adapter.getEditorIdentity());
+      if (current?.controller === controller) {
+        this.inFlight.delete(adapter.getEditorIdentity());
+      }
     }
   }
 
@@ -188,21 +200,22 @@ export class SuggestionEngine {
       },
     });
 
-    // Build a small user payload — only the text the model needs (section 19).
-    const sentences = splitSentences(text);
-    const focusText = sentences.length > 6 ? sentences.slice(0, 6).join(" ") : text;
-
-    if (focusText.length > LIMITS.maxAnalyzeTextBytes) {
-      throw {
-        code: "REQUEST_TOO_LARGE",
-        message: "Selection too large",
-      };
-    }
+    // Truncate to the native-host payload limit. We use the SAME text
+    // for hashing, slicing, and the LLM payload so that offsets returned
+    // by the model line up exactly with what we'll slice at apply time.
+    // (Previously this code built a "focusText" of the first 6 sentences
+    // joined with single spaces, which broke offsets whenever the
+    // original text contained paragraph breaks — the slice would land on
+    // the wrong characters and the apply step would falsely report
+    // STALE_RESULT.)
+    const analyzedText = text.length > LIMITS.maxAnalyzeTextBytes
+      ? text.slice(0, LIMITS.maxAnalyzeTextBytes)
+      : text;
 
     const resp: NativeResponse = await sendNativeViaSW(
       "grammar_check",
       {
-        text: focusText,
+        text: analyzedText,
         systemPrompt: prompt.system,
         model: settings.model,
         temperature: settings.temperature,
@@ -232,7 +245,7 @@ export class SuggestionEngine {
 
     let parsed: GrammarCheckResponse;
     try {
-      parsed = parseGrammarResponse(data.raw, focusText);
+      parsed = parseGrammarResponse(data.raw, analyzedText);
     } catch (e: unknown) {
       const err = e as { code?: string; detail?: string };
       throw {
@@ -252,7 +265,7 @@ export class SuggestionEngine {
         ...issue,
         editorId: adapter.getEditorIdentity(),
         textHash: hash,
-        sourceSubstring: focusText.slice(issue.start, issue.end),
+        sourceSubstring: analyzedText.slice(issue.start, issue.end),
       });
     }
 

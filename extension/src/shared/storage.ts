@@ -187,17 +187,61 @@ export async function clearDiagnostics(): Promise<void> {
   await chrome.storage.local.set({ [KEY_DIAGNOSTICS]: [] });
 }
 
-/* ---------------- Pause state (per-tab, in-memory only) ---------------- */
+/* ---------------- Pause state (per-host, in chrome.storage.session) ----------------
+ *
+ * Pause state must be visible to BOTH the service worker and the
+ * content script. Previously this lived in an in-memory Set at
+ * module scope — but the SW and CS bundles instantiate separate
+ * copies of the module, so the SW's view and the CS's view diverged.
+ * The pause button did nothing.
+ *
+ * We now persist pause state in chrome.storage.session keyed on the
+ * host (so pausing slack.com applies to all Slack tabs, which is
+ * what users actually want). chrome.storage.session is wiped when
+ * the browser closes, which matches the "pause until reload" UX.
+ */
 
-const pausedTabs = new Set<number>();
+const PAUSE_KEY_PREFIX = "paused:";
 
-export function setTabPaused(tabId: number, paused: boolean): void {
-  if (paused) pausedTabs.add(tabId);
-  else pausedTabs.delete(tabId);
+export async function setHostPaused(host: string, paused: boolean): Promise<void> {
+  const h = host.trim().toLowerCase();
+  if (!h) return;
+  const key = PAUSE_KEY_PREFIX + h;
+  if (paused) {
+    await chrome.storage.session.set({ [key]: true });
+  } else {
+    await chrome.storage.session.remove(key);
+  }
 }
 
-export function isTabPaused(tabId: number): boolean {
-  return pausedTabs.has(tabId);
+export async function isHostPaused(host: string): Promise<boolean> {
+  const h = host.trim().toLowerCase();
+  if (!h) return false;
+  const key = PAUSE_KEY_PREFIX + h;
+  const res = await chrome.storage.session.get(key);
+  return res[key] === true;
+}
+
+// Legacy in-memory API kept for backward compat with old callers, but
+// it now proxies to the session-store-backed version above. The old
+// signatures took a tabId; we re-route them through the host-based
+// store via a lookup of the tab's URL host.
+export async function setTabPaused(tabId: number, paused: boolean): Promise<void> {
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    if (!tab?.url) return;
+    const host = new URL(tab.url).host;
+    await setHostPaused(host, paused);
+  } catch {
+    // tabId is invalid or no permission — ignore.
+  }
+}
+
+export async function isTabPaused(_tabId: number): Promise<boolean> {
+  // Kept for API compat but content scripts should call isHostPaused
+  // directly with location.host. We return false because we cannot
+  // reliably map a tabId to a host from a content-script context.
+  return false;
 }
 
 /* ---------------- Cached extension id (set by installer) ---------------- */

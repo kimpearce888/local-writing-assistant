@@ -51,8 +51,7 @@
     "nativeMessaging",
     "contextMenus",
     "sidePanel",
-    "activeTab",
-    "scripting"
+    "activeTab"
   ],
   "host_permissions": [
     "http://127.0.0.1:1234/*",
@@ -84,8 +83,7 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "content.css",
-        "icons/*"
+        "content.css"
       ],
       "matches": [
         "<all_urls>"

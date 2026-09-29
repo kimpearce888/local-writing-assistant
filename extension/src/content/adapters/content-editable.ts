@@ -43,7 +43,30 @@ export class ContentEditableAdapter implements EditorAdapter {
   }
 
   getText(): string {
-    return this.el.innerText ?? "";
+    // Walk every Text node and concatenate .data. This MUST match
+    // the walk done by _textOffsetToRange below — otherwise the
+    // offsets the LLM returns (computed against the string we sent
+    // it) would not line up with the offsets we pass to
+    // _textOffsetToRange at apply time, and the replacement would
+    // land on the wrong characters.
+    //
+    // Previously this returned el.innerText, which is
+    // layout-dependent (collapses whitespace, returns "" for
+    // display:none) and uses different semantics than
+    // TreeWalker.nextNode().data — so any multi-block contenteditable
+    // (Gmail compose, Outlook web, Slack message input) produced
+    // wrong offsets and silent failures.
+    const doc = this.el.ownerDocument;
+    const walker = doc.createTreeWalker(this.el, NodeFilter.SHOW_TEXT, {
+      acceptNode: () => NodeFilter.FILTER_ACCEPT,
+    });
+    let out = "";
+    let node: Text | null = walker.nextNode() as Text | null;
+    while (node) {
+      out += node.data;
+      node = walker.nextNode() as Text | null;
+    }
+    return out;
   }
 
   getSelection(): { start: number; end: number } {

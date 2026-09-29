@@ -147,9 +147,16 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
       saveSettings(msg.settings as Partial<ExtensionSettings>).then(reply);
       return true;
 
-    case "popup-pause-site":
-      handlePauseSite(sender.tab?.id ?? -1, !!msg.paused).then(() => reply({ ok: true }));
+    case "popup-pause-site": {
+      // The popup knows its own tab id; the SW's sender.tab?.id is
+      // undefined for messages from extension pages (popups, side
+      // panels). Use msg.tabId first, fall back to sender.tab?.id.
+      const tabId = typeof msg.tabId === "number"
+        ? msg.tabId
+        : (sender.tab?.id ?? -1);
+      handlePauseSite(tabId, !!msg.paused).then(() => reply({ ok: true }));
       return true;
+    }
 
     case "popup-enable-site":
     case "popup-disable-site":
@@ -177,10 +184,25 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
         .catch((e) => reply({ ok: false, error: String(e) }));
       return true;
 
-    case "side-panel-apply-rewrite":
-      // Forward to content script of the originating tab.
-      if (typeof msg.tabId === "number") {
-        chrome.tabs.sendMessage(msg.tabId, {
+    case "side-panel-apply-rewrite": {
+      // Forward to the content script of the originating tab. We trust
+      // the SW-stored SIDE_PANEL_TAB_KEY (set when the side panel was
+      // opened for a specific tab via the context-menu / keyboard
+      // shortcut), NOT msg.tabId from the side panel — otherwise a
+      // content script in a different tab could send a forged
+      // selection-for-rewrite message and hijack the rewrite flow to
+      // inject text into a tab the user didn't intend.
+      (async () => {
+        const sessionData = await chrome.storage.session.get(SIDE_PANEL_TAB_KEY);
+        const trustedTabId = sessionData[SIDE_PANEL_TAB_KEY] as number | undefined;
+        const targetTabId = typeof trustedTabId === "number"
+          ? trustedTabId
+          : msg.tabId;
+        if (typeof targetTabId !== "number") {
+          reply({ ok: false, error: "EDITOR_UNSUPPORTED" });
+          return;
+        }
+        chrome.tabs.sendMessage(targetTabId, {
           type: "apply-rewrite",
           editorId: msg.editorId,
           start: msg.start,
@@ -188,18 +210,27 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
           replacement: msg.replacement,
           expectedHash: msg.expectedHash,
         }).then(reply).catch(() => reply({ ok: false, error: "EDITOR_UNSUPPORTED" }));
-      } else {
-        reply({ ok: false, error: "EDITOR_UNSUPPORTED" });
-      }
+      })().catch(() => reply({ ok: false, error: "EDITOR_UNSUPPORTED" }));
       return true;
+    }
 
     case "selection-for-rewrite":
-      // From content script — forward to side panel.
+      // From content script — forward to the side panel. Forward ALL
+      // fields the side panel needs to apply the replacement: the
+      // selected text, the editor id, the selection offsets, and the
+      // hash of the full editor text (so the apply step can detect if
+      // the editor's contents have changed since the rewrite was
+      // triggered). Previously only {text, editorId} was forwarded,
+      // so the side panel's Replace button always failed with
+      // "No editor is bound to this rewrite."
       chrome.runtime.sendMessage({
         type: "side-panel-rewrite",
         text: msg.text,
         editorId: msg.editorId,
         tabId: sender.tab?.id,
+        start: msg.start,
+        end: msg.end,
+        expectedHash: msg.expectedHash,
       }).catch(() => undefined);
       return false;
 
