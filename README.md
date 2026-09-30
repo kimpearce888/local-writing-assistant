@@ -3,11 +3,11 @@
 [![CI](https://github.com/kimpearce888/local-writing-assistant/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/kimpearce888/local-writing-assistant/actions/workflows/ci.yml)
 [![E2E](https://img.shields.io/badge/E2E-10%2F10%20passing-brightgreen.svg)](#testing)
 [![Release](https://github.com/kimpearce888/local-writing-assistant/actions/workflows/release.yml/badge.svg)](https://github.com/kimpearce888/local-writing-assistant/releases)
-[![Version](https://img.shields.io/badge/version-1.4.0-blue.svg)](https://github.com/kimpearce888/local-writing-assistant/releases/tag/v1.4.0)
+[![Version](https://img.shields.io/badge/version-1.5.0-blue.svg)](https://github.com/kimpearce888/local-writing-assistant/releases/tag/v1.5.0)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![No cloud](https://img.shields.io/badge/runtime-no%20cloud%20AI-1f6feb.svg)](PRIVACY.md)
 
-A **fully local** AI writing assistant for Chrome on Windows, powered by [LM Studio](https://lmstudio.ai).
+A **fully local** AI writing assistant for Chrome / Chromium on Windows and Linux, powered by [LM Studio](https://lmstudio.ai).
 
 Your text never leaves your computer. No cloud AI, no telemetry, no account. The only engine is LM Studio running on your own machine — the architecture makes the privacy promise unbreakable by construction.
 
@@ -15,7 +15,7 @@ Your text never leaves your computer. No cloud AI, no telemetry, no account. The
   <img src="docs/screenshots/suggestion-popup.png" alt="Inline grammar suggestion popup over a real email compose UI — the word 'don\'t have' is underlined and a popup offers Replace / Ignore / Add to dictionary" width="720" />
 </p>
 
-> **v1.4.0** — one-click install now auto-bootstraps LM Studio. [See what's new →](#whats-new)
+> **v1.5.0** — one-click install now auto-bootstraps LM Studio. [See what's new →](#whats-new)
 
 ---
 
@@ -50,7 +50,9 @@ Cloud-AI writing assistants have three problems: **privacy** (your draft cover l
 
 ---
 
-## Install (one-click)
+## Install
+
+### Windows (one-click)
 
 1. **Extract** `Local-Writing-Assistant-Windows.zip` anywhere.
 2. **Double-click** `Install.bat`. Done.
@@ -63,14 +65,33 @@ The installer handles everything in a single run:
 - **Starts the LM Studio server on port 1234** via the `lms` CLI
 - Opens LM Studio's GUI with clear instructions if no model is loaded yet
 
+### Linux
+
+1. **Extract** `Local-Writing-Assistant-Linux.zip` anywhere.
+2. **Run** `./install.sh` (or `bash install.sh` if the file isn't executable yet). Done.
+
+The installer:
+
+- Detects your browser (Google Chrome, Chromium, Brave, Microsoft Edge, Vivaldi — automatic)
+- Installs the native host binary to `~/.local/share/LocalWritingAssistant/native-host/`
+- Writes the native messaging manifest to `~/.config/<browser>/NativeMessagingHosts/` (per-user, no `sudo`)
+- Copies the extension to `~/.local/share/LocalWritingAssistant/extension/`
+- Bootstraps LM Studio (detects the AppImage, or opens https://lmstudio.ai/ in your browser if not installed)
+- Tries `lms server start --port 1234` via CLI; falls back to GUI instructions
+- Prints clear instructions for the one-time `Load unpacked` step
+
+> **No `sudo` required.** Everything goes to `~/.local/share/` and `~/.config/`. The system-wide install paths (`/etc/opt/chrome/native-messaging-hosts/`) would require root, but per-user is enough for personal use.
+
+### Both platforms
+
 **The one unavoidable manual step:** if no model is loaded, the installer opens LM Studio at the model browser and prints a 6-step walkthrough. You click **Download** on a chat-capable model (e.g. **Qwen2.5 7B Instruct**), wait for the multi-GB download, then click **Start Server**. License acceptance + size + model choice = inherently a human decision.
 
-### Chrome extension loading
+### Chrome extension loading (Mode A vs Mode B)
 
-- **Enterprise Chrome (Mode A):** silently force-installed via `ExtensionInstallForcelist` pointing at our GitHub Pages `update.xml`. Zero manual steps.
-- **Personal Chrome (Mode B):** Chrome refuses to silently install off-store extensions. The installer prints clear instructions for a one-time `Load unpacked` step (Developer mode ON → select the extension folder).
+- **Windows enterprise Chrome (Mode A):** silently force-installed via `ExtensionInstallForcelist` pointing at our GitHub Pages `update.xml`. Zero manual steps.
+- **Personal Chrome on Windows or Linux (Mode B):** Chrome refuses to silently install off-store extensions. The installer prints clear instructions for a one-time `Load unpacked` step (Developer mode ON → select the extension folder). Mode A does not exist on Linux (Linux Chrome doesn't have group policy support like Windows).
 
-> **Advanced users** who already have LM Studio set up: pass `-SkipLMStudio` to `install.ps1`.
+> **Advanced users** who already have LM Studio set up: pass `-SkipLMStudio` (Windows) or `--skip-lm-studio` (Linux) to the installer.
 
 ---
 
@@ -101,7 +122,17 @@ Full details: [`PRIVACY.md`](PRIVACY.md) · [`SECURITY.md`](SECURITY.md) · [`DE
 
 ## What's new
 
-### v1.4.0 — one-click install
+### v1.5.0 — Linux support
+
+The project now runs on Linux as well as Windows. Same Go native host source, same Chrome extension, same mock-AI test suite — just a Linux binary + Linux installer + Linux diagnostics. Both ZIPs are attached to every release.
+
+- **`installer/install.sh`** — bash installer that detects your browser (Chrome, Chromium, Brave, Edge, Vivaldi), installs the native host binary to `~/.local/share/LocalWritingAssistant/`, writes the native messaging manifest to `~/.config/<browser>/NativeMessagingHosts/`, copies the extension, and bootstraps LM Studio. No `sudo` required.
+- **`installer/setup-lm-studio.sh`** — LM Studio bootstrap for Linux. Detects the AppImage in common locations (`~/Applications/`, `~/Downloads/`, `~/.local/bin/`, etc.), launches it, and tries `lms server start` via CLI. Falls back to opening https://lmstudio.ai/ if not installed.
+- **`installer/diagnose.sh`** — PASS/WARN/FAIL health check for Linux. Validates the native host binary, manifest JSON shape, extension folder, and LM Studio server reachability.
+- **`scripts/package.cjs`** now produces both `Local-Writing-Assistant-Windows.zip` and `Local-Writing-Assistant-Linux.zip`. Each ZIP contains only its platform's installer + binary (no Windows `.bat`/`.ps1` in the Linux ZIP, no Linux `.sh` in the Windows ZIP).
+- CI now builds both Windows (PE32+) and Linux (ELF) binaries on every PR, plus a Linux smoke test that actually runs the binary in mock-AI mode and verifies it responds to a `ping`.
+
+### v1.4.0 — one-click install (Windows)
 
 The installer now bootstraps LM Studio automatically. **Detect → download → silent-install → launch → start server** — a fresh Windows machine goes from "extract ZIP" to "extension running with a model loaded" with one double-click. Model download remains the only manual step (license + size + user choice).
 

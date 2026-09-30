@@ -72,6 +72,16 @@ jobs:
           go build -ldflags="-s -w" -o build/LocalWritingAssistantHost.exe ./cmd/localwritingassistanthost
           file build/LocalWritingAssistantHost.exe
 
+      # ---- Build native host for Linux (same Go source, no GOOS override) ----
+      - name: Build Linux native host
+        working-directory: native-host
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          go build -ldflags="-s -w" -o build/LocalWritingAssistantHost ./cmd/localwritingassistanthost
+          file build/LocalWritingAssistantHost
+          chmod +x build/LocalWritingAssistantHost
+
       # ---- Build extension ----
       - name: Install root dependencies (vitest, jsdom)
         run: npm install --no-audit --no-fund
@@ -113,16 +123,21 @@ jobs:
           cp dist/extension.crx dist/Local-Writing-Assistant-Windows.crx
           sha256sum dist/extension.crx > dist/extension.crx.sha256
 
-      # ---- Assemble the ZIP exactly as the manual packager does ----
-      - name: Package ZIP
+      # ---- Assemble the ZIPs (Windows + Linux) ----
+      - name: Package ZIPs
         run: node scripts/package.cjs
 
-      - name: Verify ZIP exists
+      - name: Verify ZIPs exist
         run: |
           ls -la dist/Local-Writing-Assistant-Windows.zip
+          ls -la dist/Local-Writing-Assistant-Linux.zip
           test -f dist/Local-Writing-Assistant-Windows.zip
-          # Print top-level contents of the ZIP for the release log.
-          unzip -l dist/Local-Writing-Assistant-Windows.zip | head -20
+          test -f dist/Local-Writing-Assistant-Linux.zip
+          # Print top-level contents of each ZIP for the release log.
+          echo "--- Windows ZIP contents ---"
+          unzip -l dist/Local-Writing-Assistant-Windows.zip | head -25
+          echo "--- Linux ZIP contents ---"
+          unzip -l dist/Local-Writing-Assistant-Linux.zip | head -25
 
       # ---- Publish ----
       - name: Create or update GitHub Release
@@ -136,35 +151,55 @@ jobs:
           prerelease: false
           files: |
             dist/Local-Writing-Assistant-Windows.zip
+            dist/Local-Writing-Assistant-Linux.zip
             dist/Local-Writing-Assistant-Windows.crx
             dist/extension.crx.sha256
           body: |
             ## Download
 
-            **[Local-Writing-Assistant-Windows.zip](https://github.com/${{ github.repository }}/releases/download/${{ steps.tag.outputs.name }}/Local-Writing-Assistant-Windows.zip)
+            **Windows:**
+            [Local-Writing-Assistant-Windows.zip](https://github.com/${{ github.repository }}/releases/download/${{ steps.tag.outputs.name }}/Local-Writing-Assistant-Windows.zip)
 
-            ## Quick start
+            **Linux:**
+            [Local-Writing-Assistant-Linux.zip](https://github.com/${{ github.repository }}/releases/download/${{ steps.tag.outputs.name }}/Local-Writing-Assistant-Linux.zip)
+
+            ## Quick start — Windows
 
             1. Download and extract `Local-Writing-Assistant-Windows.zip`.
             2. Double-click `Install.bat`.
-            3. Open LM Studio, load any chat-capable model, start the local server on port 1234.
-            4. Click the extension toolbar icon → **Test LM Studio Connection**.
+            3. The installer auto-bootstraps LM Studio (download + silent install + launch + start server on port 1234). The one unavoidable manual step is loading your first model — open LM Studio → Search tab → download e.g. Qwen2.5 7B Instruct → Local Server tab → Start Server.
+            4. Click the extension toolbar icon → **Test LM Studio Connection** (should show `● Connected`).
             5. Start writing in any `<textarea>`, supported `<input>`, or `contenteditable` editor.
+
+            ## Quick start — Linux
+
+            1. Download and extract `Local-Writing-Assistant-Linux.zip`.
+            2. Run `./install.sh` (or `bash install.sh`). The script:
+               - Detects your browser (Google Chrome / Chromium / Brave / Microsoft Edge / Vivaldi).
+               - Installs the native host binary to `~/.local/share/LocalWritingAssistant/native-host/`.
+               - Writes the native messaging manifest to `~/.config/<browser>/NativeMessagingHosts/`.
+               - Copies the extension to `~/.local/share/LocalWritingAssistant/extension/`.
+               - Bootstraps LM Studio (opens the AppImage download page if not installed).
+               - Prints clear instructions for the one-time `Load unpacked` step.
+            3. In `chrome://extensions` → enable **Developer mode** → **Load unpacked** → select `~/.local/share/LocalWritingAssistant/extension`.
+            4. Open LM Studio, load a chat-capable model, start the local server on port 1234.
+            5. Start writing.
 
             ## What is this
 
-            A fully local AI writing assistant for Chrome on Windows, powered by LM Studio. No cloud, no telemetry, no remote backend, no account, no login. The user's text never leaves the user's computer.
+            A fully local AI writing assistant for Chrome / Chromium on Windows and Linux, powered by LM Studio. No cloud, no telemetry, no remote backend, no account, no login. The user's text never leaves the user's computer.
 
-            The architecture is: WEB PAGE → content script → service worker → Chrome native messaging → standalone Go host EXE → `http://127.0.0.1:1234` → LM Studio → local LLM.
+            The architecture is: WEB PAGE → content script → service worker → Chrome native messaging → standalone Go host binary → `http://127.0.0.1:1234` → LM Studio → local LLM.
 
             ## Build provenance
 
             This release was built automatically by GitHub Actions from tag `${{ steps.tag.outputs.name }}`.
             - Build commit: `${{ github.sha }}`
             - Builder: GitHub-hosted Ubuntu runner
-            - All CI checks (typecheck, network audit, security audit, Go unit tests, integration tests, Windows cross-compile) passed before packaging.
-            - The ZIP's SHA-256 is printed in the build log.
+            - All CI checks (typecheck, network audit, security audit, Go unit tests, integration tests, Windows cross-compile, Linux native build) passed before packaging.
+            - Each ZIP's SHA-256 is printed in the build log.
 
       - name: Print asset SHA-256
         run: |
           sha256sum dist/Local-Writing-Assistant-Windows.zip
+          sha256sum dist/Local-Writing-Assistant-Linux.zip

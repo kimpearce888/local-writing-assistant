@@ -1,14 +1,26 @@
 /**
- * Final ZIP packager.
+ * Final ZIP packager — supports both Windows and Linux.
  *
  * Walks the source tree, excludes build artifacts / node_modules / .git,
  * copies the already-built extension/dist and native-host/build outputs
  * into a clean staging directory, and produces:
  *
- *   dist/Local-Writing-Assistant-Windows.zip
+ *   dist/Local-Writing-Assistant-Windows.zip   (Windows EXE + .bat/.ps1 installers)
+ *   dist/Local-Writing-Assistant-Linux.zip     (Linux binary + .sh installers)
  *
  * The ZIP's top-level directory is Local-Writing-Assistant/ with the
  * structure described in spec section 80.
+ *
+ * Usage:
+ *   node scripts/package.cjs              # package both platforms
+ *   node scripts/package.cjs --windows    # Windows only
+ *   node scripts/package.cjs --linux      # Linux only
+ *
+ * For a Windows-only release from this Linux dev box, the native host
+ * EXE must already exist at native-host/build/LocalWritingAssistantHost.exe
+ * (built via `npm run build:native` which sets GOOS=windows).
+ * For a Linux-only release, the binary at native-host/build/LocalWritingAssistantHost
+ * must already exist (built via `npm run build:native:linux`).
  */
 
 const fs = require("node:fs");
@@ -18,8 +30,11 @@ const { execSync } = require("node:child_process");
 const ROOT = path.resolve(__dirname, "..");
 const STAGE = path.join(ROOT, "dist-stage");
 const DIST = path.join(ROOT, "dist");
-const ZIP_NAME = "Local-Writing-Assistant-Windows.zip";
 const TOP_DIR = "Local-Writing-Assistant";
+
+const argv = process.argv.slice(2);
+const wantWindows = argv.includes("--windows") || argv.length === 0;
+const wantLinux = argv.includes("--linux") || argv.length === 0;
 
 function rmrf(p) {
   if (fs.existsSync(p)) fs.rmSync(p, { recursive: true, force: true });
@@ -42,25 +57,58 @@ function copyRecursive(src, dest) {
   }
 }
 
-function ensureBuilt() {
+function ensureBuiltFor(platform) {
   const extDist = path.join(ROOT, "extension", "dist");
-  const hostExe = path.join(ROOT, "native-host", "build", "LocalWritingAssistantHost.exe");
   if (!fs.existsSync(extDist) || !fs.existsSync(path.join(extDist, "manifest.json"))) {
     throw new Error("Extension is not built. Run `npm run build:extension` first.");
   }
-  if (!fs.existsSync(hostExe)) {
-    throw new Error("Windows native host EXE not found. Run `npm run build:native` first.");
+  const hostName = platform === "windows"
+    ? "LocalWritingAssistantHost.exe"
+    : "LocalWritingAssistantHost";
+  const hostPath = path.join(ROOT, "native-host", "build", hostName);
+  if (!fs.existsSync(hostPath)) {
+    throw new Error(
+      `${platform === "windows" ? "Windows" : "Linux"} native host not found at ${hostPath}. ` +
+      `Run ${platform === "windows" ? "`npm run build:native`" : "`npm run build:native:linux`"} first.`,
+    );
   }
+  return hostPath;
 }
 
-function stage() {
+/**
+ * Stage the platform-specific ZIP. Each platform gets:
+ *   - installer/ — all .bat/.ps1 (Windows) or .sh (Linux) scripts
+ *   - native-host/ — the platform binary
+ *   - extension/ — built extension files (platform-independent)
+ *   - README.md, PRIVACY.md, SECURITY.md, DEVELOPMENT.md, LICENSE, CHANGELOG.md
+ *   - README.txt (packaging/)
+ */
+function stageFor(platform, hostPath) {
   rmrf(STAGE);
   mkdirp(STAGE);
   const top = path.join(STAGE, TOP_DIR);
   mkdirp(top);
 
-  // Top-level launcher scripts.
+  // Top-level launcher scripts — copy the WHOLE installer/ folder, then
+  // remove the OTHER platform's scripts to avoid confusion.
   copyRecursive(path.join(ROOT, "installer"), path.join(top, "installer"));
+  if (platform === "windows") {
+    // Remove Linux scripts from the Windows package.
+    for (const f of ["install.sh", "setup-lm-studio.sh", "diagnose.sh"]) {
+      const p = path.join(top, "installer", f);
+      if (fs.existsSync(p)) fs.rmSync(p);
+    }
+  } else {
+    // Remove Windows scripts from the Linux package.
+    for (const f of [
+      "install.ps1", "setup-lm-studio.ps1", "uninstall.ps1",
+      "diagnose.ps1", "LocalWritingAssistant.iss",
+      "Install.bat", "Uninstall.bat", "Diagnose.bat",
+    ]) {
+      const p = path.join(top, "installer", f);
+      if (fs.existsSync(p)) fs.rmSync(p);
+    }
+  }
 
   // Top-level README.
   fs.copyFileSync(
@@ -68,19 +116,17 @@ function stage() {
     path.join(top, "README.txt"),
   );
 
-  // Native host EXE goes into installer/native-host/ so install.ps1 can find it.
+  // Native host binary goes into native-host/ so install scripts find it.
   mkdirp(path.join(top, "native-host"));
-  fs.copyFileSync(
-    path.join(ROOT, "native-host", "build", "LocalWritingAssistantHost.exe"),
-    path.join(top, "native-host", "LocalWritingAssistantHost.exe"),
-  );
+  const hostName = path.basename(hostPath);
+  fs.copyFileSync(hostPath, path.join(top, "native-host", hostName));
   // Also copy host-manifest.template.json for reference.
   fs.copyFileSync(
     path.join(ROOT, "native-host", "host-manifest.template.json"),
     path.join(top, "native-host", "host-manifest.template.json"),
   );
 
-  // Built extension goes into extension/ — install.ps1 copies it into %LOCALAPPDATA%.
+  // Built extension (platform-independent).
   copyRecursive(
     path.join(ROOT, "extension", "dist"),
     path.join(top, "extension"),
@@ -91,11 +137,7 @@ function stage() {
   mkdirp(path.join(top, "update"));
   mkdirp(path.join(top, "diagnostics"));
 
-  // Documentation. LICENSE MUST be included so the ZIP is MIT-compliant
-  // — previously the ZIP shipped without LICENSE, which is a license
-  // violation (the MIT license requires that "the above copyright
-  // notice and this permission notice shall be included in all copies
-  // or substantial portions of the Software").
+  // Documentation. LICENSE MUST be included so the ZIP is MIT-compliant.
   for (const f of ["README.md", "PRIVACY.md", "SECURITY.md", "DEVELOPMENT.md", "LICENSE", "CHANGELOG.md"]) {
     const src = path.join(ROOT, f);
     if (fs.existsSync(src)) {
@@ -103,28 +145,34 @@ function stage() {
     }
   }
 
-  // Top-level launcher .bat files (copies of installer/*.bat).
-  fs.copyFileSync(
-    path.join(top, "installer", "Install.bat"),
-    path.join(top, "Install.bat"),
-  );
-  fs.copyFileSync(
-    path.join(top, "installer", "Uninstall.bat"),
-    path.join(top, "Uninstall.bat"),
-  );
-  fs.copyFileSync(
-    path.join(top, "installer", "Diagnose.bat"),
-    path.join(top, "Diagnose.bat"),
-  );
+  // Top-level launcher scripts (copies of installer/*.bat or installer/*.sh).
+  if (platform === "windows") {
+    for (const f of ["Install.bat", "Uninstall.bat", "Diagnose.bat"]) {
+      const src = path.join(top, "installer", f);
+      if (fs.existsSync(src)) {
+        fs.copyFileSync(src, path.join(top, f));
+      }
+    }
+  } else {
+    for (const f of ["install.sh", "diagnose.sh"]) {
+      const src = path.join(top, "installer", f);
+      if (fs.existsSync(src)) {
+        fs.copyFileSync(src, path.join(top, f));
+        // Make sure the copied .sh is executable in the ZIP.
+        fs.chmodSync(path.join(top, f), 0o755);
+      }
+    }
+  }
 }
 
-function zip() {
+function zipFor(platform) {
+  const zipName = platform === "windows"
+    ? "Local-Writing-Assistant-Windows.zip"
+    : "Local-Writing-Assistant-Linux.zip";
   rmrf(DIST);
   mkdirp(DIST);
-  // Use Info-ZIP's `zip` if available (it is on this dev box); fall back
-  // to Node's built-in zlib if not.
   try {
-    execSync(`zip -r "${path.join(DIST, ZIP_NAME)}" "${TOP_DIR}"`, {
+    execSync(`zip -r "${path.join(DIST, zipName)}" "${TOP_DIR}"`, {
       cwd: STAGE,
       stdio: "inherit",
     });
@@ -133,16 +181,22 @@ function zip() {
     process.exit(1);
   }
   console.log("");
-  console.log(`Wrote ${path.join(DIST, ZIP_NAME)}`);
-  // Print size.
-  const sz = fs.statSync(path.join(DIST, ZIP_NAME)).size;
+  console.log(`Wrote ${path.join(DIST, zipName)}`);
+  const sz = fs.statSync(path.join(DIST, zipName)).size;
   console.log(`Size: ${(sz / 1024).toFixed(1)} KiB`);
+  console.log("");
+}
+
+function packagePlatform(platform) {
+  console.log(`=== Packaging for ${platform} ===`);
+  const hostPath = ensureBuiltFor(platform);
+  stageFor(platform, hostPath);
+  zipFor(platform);
 }
 
 function main() {
-  ensureBuilt();
-  stage();
-  zip();
+  if (wantWindows) packagePlatform("windows");
+  if (wantLinux) packagePlatform("linux");
 }
 
 main();

@@ -351,7 +351,7 @@ func writeErr(w io.Writer, rid, code, message string) {
 }
 
 func hostVersion() string {
-	return "1.4.0"
+	return "1.5.0"
 }
 
 // loadConfig reads the optional host-config.json next to the executable

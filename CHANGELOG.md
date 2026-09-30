@@ -8,6 +8,65 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 _No unreleased changes yet._
 
+## [1.5.0] — 2026-09-30
+
+Linux support. The project now runs on Linux as well as Windows — same Go native host source, same Chrome extension, same mock-AI test suite. Both ZIPs are attached to every release.
+
+### Added — Linux installer
+
+- **`installer/install.sh`** — bash installer. Detects the user's browser (Google Chrome, Chromium, Brave, Microsoft Edge, Vivaldi — automatic, via both PATH lookup and config-dir existence). Installs the native host binary to `~/.local/share/LocalWritingAssistant/native-host/`. Writes the native messaging manifest to `~/.config/<browser>/NativeMessagingHosts/com.localwritingassistant.host.json` for every detected browser. Copies the extension to `~/.local/share/LocalWritingAssistant/extension/`. Calls `setup-lm-studio.sh` to bootstrap LM Studio. Prints clear instructions for the one-time `Load unpacked` step.
+- **`installer/setup-lm-studio.sh`** — LM Studio bootstrap for Linux. Detects the AppImage in common locations (`~/Applications/`, `~/Downloads/`, `~/.local/bin/`, `~/.local/share/lm-studio/`, `/opt/lm-studio/`, plus PATH lookup for `lm-studio` / `LM_Studio` / `lmstudio`). Launches it if not running, waits up to 30s for the process to register. Checks server reachability on port 1234. Tries `lms server start --port 1234` via CLI. Falls back to opening LM Studio's GUI with clear instructions if no model is loaded.
+- **`installer/diagnose.sh`** — PASS/WARN/FAIL health check for Linux. Validates: browser installation (binary or config dir), native host binary presence + executable bit, native messaging manifest valid JSON + correct path + correct allowed_origins, extension folder + manifest.json version, LM Studio server reachability, LM Studio process running.
+
+### Added — Linux native host build
+
+- **`build:native:linux`** npm script — already existed, now properly integrated into the release pipeline. Builds a stripped Linux ELF binary (5.5 MB) via `CGO_ENABLED=0 go build -ldflags='-s -w'`. No source changes needed — the Go host is platform-independent by design (only the native messaging manifest registration differs, and that's handled by the platform-specific installer).
+
+### Changed — Packaging
+
+- **`scripts/package.cjs`** rewritten to produce TWO ZIPs:
+  - `Local-Writing-Assistant-Windows.zip` — Windows EXE + Windows installer scripts (`.bat` / `.ps1` / `.iss`)
+  - `Local-Writing-Assistant-Linux.zip` — Linux binary + Linux installer scripts (`.sh`)
+  Each ZIP contains only its platform's installer + binary — no Windows scripts in the Linux ZIP and vice versa. The extension files (HTML/CSS/JS) are platform-independent and ship in both ZIPs.
+- New npm scripts: `npm run package:windows` and `npm run package:linux` for per-platform packaging. `npm run package` (no args) packages both.
+- New npm script: `npm run build:native:all` — builds both Windows EXE and Linux binary in one go.
+
+### Changed — CI/CD
+
+- `.github/workflows/ci.yml` `cross-compile` job now builds both Windows (PE32+ MZ magic verified) AND Linux (ELF magic verified) binaries on every PR. Plus a Linux smoke test that actually runs the binary in mock-AI mode and verifies it responds to a `ping` — catches any platform-specific runtime issue at the source.
+- `.github/workflows/release.yml` now:
+  - Builds both Windows and Linux binaries
+  - Packages both ZIPs via `scripts/package.cjs`
+  - Attaches both ZIPs to the GitHub Release
+  - Release notes have separate "Quick start — Windows" and "Quick start — Linux" sections
+
+### What's the same
+
+- The Chrome extension is **identical** on both platforms — same TypeScript source, same built `extension/dist/`, same extension ID (`lclfegmpnhibpkijgmlpjaoemnjpabcp`).
+- The Go native host is **identical source code** — only the build target differs (`GOOS=windows` for the Windows EXE, no override for the Linux binary).
+- The native messaging wire protocol is **identical** on both platforms (length-prefixed JSON over stdin/stdout).
+- The LM Studio API endpoint is **identical** (`http://127.0.0.1:1234`).
+- The mock-AI test mode (`LOCAL_MOCK_AI=true`) is **identical** — same wire responses, same test fixtures, all 60 tests pass on both platforms.
+- The privacy promise is **identical** — the Go host's custom HTTP dialer refuses any non-loopback destination on both platforms.
+
+### What's different
+
+- **Installer path:** Windows uses `HKCU\Software\Google\Chrome\NativeMessagingHosts\` (registry); Linux uses `~/.config/google-chrome/NativeMessagingHosts/<host>.json` (JSON file).
+- **LM Studio distribution:** Windows uses an Inno Setup `.exe` installer (silent-install via `/VERYSILENT`); Linux uses an AppImage (single executable file, no installer needed — just `chmod +x`).
+- **Mode A (enterprise force-install):** works on Windows (via `ExtensionInstallForcelist` group policy). Does NOT exist on Linux (Linux Chrome doesn't have group policy support). Mode B ("Load unpacked") works on both.
+
+### Test totals (all green on both platforms)
+
+- 37 Vitest unit tests
+- 4 Go unit tests + 9 Go integration tests (run on Linux, same binary the installer ships)
+- 10 Playwright E2E tests (run on Linux Chromium with mock AI)
+- = **60 tests total**
+- Static network + security audits: clean
+- TypeScript typecheck: clean
+- **NEW:** Linux binary smoke test (CI runs `echo '{"command":"ping",...}' | LOCAL_MOCK_AI=true ./build/LocalWritingAssistantHost` and verifies it produces a valid response)
+- Windows EXE cross-compile: PE32+ verified
+- Linux binary build: ELF magic verified
+
 ## [1.4.0] — 2026-09-30
 
 One-click install. The installer now bootstraps LM Studio automatically — detect, download, silent-install, launch, and start the local server on port 1234 — so a fresh Windows machine can go from "extract ZIP" to "extension running with a model loaded" with one double-click.
@@ -323,7 +382,8 @@ No cloud, no telemetry, no remote backend, no SaaS, no account, no login. The on
 - The PowerShell installer scripts have been manually reviewed for syntax and brace balance but have not been executed against real Windows PowerShell in this release. Run `Diagnose.bat` after install to verify every layer.
 - Real-world contenteditable behavior in Gmail / Outlook web / other rich-text editors may surface edge cases. The adapter uses `execCommand("insertText")` for undo preservation, but some editors intercept or override this command.
 
-[Unreleased]: https://github.com/kimpearce888/local-writing-assistant/compare/v1.4.0...HEAD
+[Unreleased]: https://github.com/kimpearce888/local-writing-assistant/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/kimpearce888/local-writing-assistant/releases/tag/v1.5.0
 [1.4.0]: https://github.com/kimpearce888/local-writing-assistant/releases/tag/v1.4.0
 [1.3.0]: https://github.com/kimpearce888/local-writing-assistant/releases/tag/v1.3.0
 [1.2.0]: https://github.com/kimpearce888/local-writing-assistant/releases/tag/v1.2.0

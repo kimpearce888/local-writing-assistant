@@ -18,7 +18,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const ROOT = path.resolve(__dirname, "..");
-const SKIP_DIRS = new Set(["node_modules", "dist", "build", ".git"]);
+const SKIP_DIRS = new Set(["node_modules", "dist", "build", "dist-stage", ".git"]);
 const SKIP_FILES = new Set(["security-audit.js", "network-audit.js"]);
 
 const FORBIDDEN = [

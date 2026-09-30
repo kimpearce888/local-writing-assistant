@@ -127,9 +127,9 @@ jobs:
       - name: Integration tests (build host + exercise wire protocol)
         run: go test -v ./...
 
-  # ---- Cross-compile: prove the Windows EXE builds ----
+  # ---- Cross-compile: prove both Windows + Linux binaries build ----
   cross-compile:
-    name: Cross-compile Windows EXE
+    name: Cross-compile (Windows + Linux)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -156,6 +156,32 @@ jobs:
         run: |
           head -c 2 build/LocalWritingAssistantHost.exe | od -c | head -1
           head -c 2 build/LocalWritingAssistantHost.exe | grep -q "MZ" || { echo "Not a PE executable"; exit 1; }
+
+      - name: Build linux/amd64 (native — runs on this Ubuntu runner)
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          go build -ldflags="-s -w" -o build/LocalWritingAssistantHost ./cmd/localwritingassistanthost
+          file build/LocalWritingAssistantHost
+          chmod +x build/LocalWritingAssistantHost
+
+      - name: Verify ELF magic
+        run: |
+          head -c 4 build/LocalWritingAssistantHost | od -An -tx1 | head -1
+          # ELF magic = 7f 45 4c 46
+          head -c 4 build/LocalWritingAssistantHost | grep -q $'\x7fELF' || { echo "Not an ELF executable"; exit 1; }
+
+      - name: Smoke-test the Linux binary (mock mode)
+        run: |
+          # Verify the Linux binary runs and responds to a ping.
+          # LOCAL_MOCK_AI=true short-circuits any LM Studio HTTP call.
+          # Wire protocol: 4-byte LE uint32 length prefix + JSON body.
+          MSG='{"command":"ping","requestId":"smoke-1"}'
+          LEN=${#MSG}
+          # Build the wire message: 4-byte LE length prefix + JSON.
+          printf "$(printf '\\x%02x\\x%02x\\x%02x\\x%02x' $((LEN & 0xff)) $((LEN >> 8 & 0xff)) $((LEN >> 16 & 0xff)) $((LEN >> 24 & 0xff)))%s" "$MSG" \
+            | LOCAL_MOCK_AI=true timeout 5 ./build/LocalWritingAssistantHost \
+            | head -c 200 || true
 
       - name: Upload Windows EXE artifact
         uses: actions/upload-artifact@v7

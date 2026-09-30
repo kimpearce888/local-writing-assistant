@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Local Writing Assistant",
   "short_name": "Local Writer",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Fully local AI writing assistant. Grammar, spelling, clarity and rewrite powered by LM Studio on your own machine. No cloud, no telemetry.",
   "default_locale": "en",
   "icons": {

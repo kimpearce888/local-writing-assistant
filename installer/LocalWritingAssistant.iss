@@ -24,7 +24,7 @@
 ; showed the wrong version. Run `iscc installer/LocalWritingAssistant.iss`
 ; from the repo root so the relative paths below resolve correctly.
 #ifndef MyAppVersion
-  #define MyAppVersion "1.4.0"
+  #define MyAppVersion "1.5.0"
 #endif
 #define MyAppPublisher "Local Writing Assistant Project"
 #define MyAppURL "https://github.com/kimpearce888/local-writing-assistant"

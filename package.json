@@ -1,13 +1,14 @@
 {
   "name": "local-writing-assistant",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "private": true,
   "type": "module",
-  "description": "Fully local AI writing assistant — Chrome extension + native host + Windows installer.",
+  "description": "Fully local AI writing assistant — Chrome extension + native host + Windows + Linux installer.",
   "scripts": {
     "build:extension": "cd extension && npm run build",
     "build:native": "cd native-host && GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -ldflags='-s -w' -o build/LocalWritingAssistantHost.exe ./cmd/localwritingassistanthost",
     "build:native:linux": "cd native-host && CGO_ENABLED=0 go build -ldflags='-s -w' -o build/LocalWritingAssistantHost ./cmd/localwritingassistanthost",
+    "build:native:all": "npm run build:native && npm run build:native:linux",
     "build:crx": "node scripts/build-crx.cjs",
     "test:extension": "cd extension && npm run test",
     "test:native": "cd native-host && go test ./...",
@@ -16,6 +17,8 @@
     "test": "npm run test:native && npm run test:integration && npx vitest run",
     "typecheck": "cd extension && npm run typecheck",
     "package": "node scripts/package.cjs",
+    "package:windows": "node scripts/package.cjs --windows",
+    "package:linux": "node scripts/package.cjs --linux",
     "audit:network": "node scripts/network-audit.cjs",
     "audit:security": "node scripts/security-audit.cjs",
     "icons": "node scripts/generate-icons.cjs"
