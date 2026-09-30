@@ -24,7 +24,7 @@
 ; showed the wrong version. Run `iscc installer/LocalWritingAssistant.iss`
 ; from the repo root so the relative paths below resolve correctly.
 #ifndef MyAppVersion
-  #define MyAppVersion "1.3.0"
+  #define MyAppVersion "1.4.0"
 #endif
 #define MyAppPublisher "Local Writing Assistant Project"
 #define MyAppURL "https://github.com/kimpearce888/local-writing-assistant"
@@ -71,6 +71,7 @@ Source: "extension\dist\*"; DestDir: "{app}\extension"; Flags: ignoreversion rec
 Source: "installer\install.ps1"; DestDir: "{app}\installer"; Flags: ignoreversion
 Source: "installer\uninstall.ps1"; DestDir: "{app}\installer"; Flags: ignoreversion
 Source: "installer\diagnose.ps1"; DestDir: "{app}\installer"; Flags: ignoreversion
+Source: "installer\setup-lm-studio.ps1"; DestDir: "{app}\installer"; Flags: ignoreversion
 ; (detect-chrome.ps1 and generate-policy.ps1 were removed in v1.3.0
 ; — they were dead code that duplicated install.ps1's logic and
 ; contained an unfixed New-ItemProperty -Force bug that wiped the

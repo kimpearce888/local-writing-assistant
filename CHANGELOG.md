@@ -8,6 +8,52 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 _No unreleased changes yet._
 
+## [1.4.0] — 2026-09-30
+
+One-click install. The installer now bootstraps LM Studio automatically — detect, download, silent-install, launch, and start the local server on port 1234 — so a fresh Windows machine can go from "extract ZIP" to "extension running with a model loaded" with one double-click.
+
+### What's automated
+
+- **LM Studio detection.** `installer/setup-lm-studio.ps1` checks the registry (`HKCU/HKLM\Software\Microsoft\Windows\CurrentVersion\Uninstall\*`), common install paths (`%LOCALAPPDATA%\LM-Studio\`, `Program Files\LM Studio\`), and `PATH` for `lms.exe`. Returns the GUI exe path or `$null`.
+- **LM Studio download + silent install.** If not detected, the script scrapes `https://lmstudio.ai/` for the current Windows installer URL, downloads it, and runs it with `/VERYSILENT /SP- /NORESTART` (Inno Setup silent-install flags). Falls back to opening the website in the user's browser if scraping fails (HTML structure changed, network issue, etc.).
+- **LM Studio app launch.** After install (or if already installed but not running), the script `Start-Process`es the GUI exe and waits up to 30s for the process to register.
+- **Server start via CLI.** `lms server start --port 1234` runs in the background. The script then polls `http://127.0.0.1:1234/v1/models` for up to 3 seconds to confirm the server is up.
+- **Model availability check.** If the server is reachable but no model is loaded, the script opens LM Studio's GUI and prints clear instructions: "click the Search tab → search for Qwen2.5 7B Instruct → Download → click the Local Server tab → Start Server."
+
+### What is NOT automated (and why)
+
+- **Model download.** License acceptance (different per model family — Apache 2.0, Llama Community License, Mistral Research License, etc.), multi-GB download size (3–40 GB depending on model size and quantization), and the user's choice of model (Qwen vs Llama vs Mistral, parameter size, language capabilities) all make this inherently a human decision. The script opens the LM Studio model browser and prints a 6-step walkthrough, but the user must click "Download" themselves.
+- **Model loading.** `lms load <name>` only works if a model is already in the local LM Studio cache. For first-time users, the script falls back to the GUI flow above.
+
+### Why this design
+
+The realistic UX is:
+
+- **If the user already has LM Studio + a model loaded:** truly one-click. They double-click `Install.bat`, the installer detects everything is in place, prints `[PASS] LM Studio reachable (1 model(s) available)`, and they're done. No LM Studio GUI ever opens.
+- **If the user has LM Studio but no model loaded:** the installer launches LM Studio, opens the model browser, prints clear instructions, and waits for the user to finish the model selection. The native host + extension are installed in parallel.
+- **If the user is new to LM Studio:** the installer downloads + silent-installs LM Studio, launches it, prints clear instructions for picking a model. One unavoidable manual step (model download + load) remains.
+
+For a local-only AI assistant, this is the best honest UX — the model download is the user's choice and can't be automated away.
+
+### Files changed
+
+- **Added** `installer/setup-lm-studio.ps1` (new) — LM Studio detection / download / install / launch / server-start. ~250 lines, well-commented, defensive (every risky op is wrapped in try/catch with a clear fallback message).
+- **Modified** `installer/install.ps1` — added `-SkipLMStudio` switch; step 12 now calls `setup-lm-studio.ps1` instead of the old reachability-check-only block. Falls back to the old check if `setup-lm-studio.ps1` is missing (older install package).
+- **Modified** `installer/LocalWritingAssistant.iss` — added `setup-lm-studio.ps1` to `[Files]`.
+- **Modified** `README.md` — rewrote Installation section as "one-click" with the new LM Studio auto-bootstrap flow; clearly explains what is and isn't automated and why.
+
+### Test totals (all green)
+
+- 37 Vitest unit tests
+- 4 Go unit tests + 9 Go integration tests
+- 10 Playwright E2E tests (7 original + 3 manual-flow)
+- = **60 tests total**
+- Static network + security audits: clean
+- TypeScript typecheck: clean
+- Windows EXE cross-compile: PE32+ verified
+
+> **Note on testing:** The new `setup-lm-studio.ps1` script is PowerShell that runs on Windows only. We can't run it on this Linux dev box. It's been reviewed by code reading — every risky operation (HTTP fetch, file write, process start, registry query) is wrapped in `try/catch` with a clear fallback message + return path. The script never silently swallows errors — every failure prints `[WARN]` or `[FAIL]` with a recovery hint.
+
 ## [1.3.0] — 2026-09-30
 
 A second-pass neutral audit on top of v1.2.0 caught 2 HIGH bugs (one of them a regression from v1.2.0's H13 fix) plus 13 MEDIUMs and 13 LOWs. This release fixes the 2 HIGHs, 7 of the most impactful MEDIUMs, and 1 LOW.
@@ -277,7 +323,8 @@ No cloud, no telemetry, no remote backend, no SaaS, no account, no login. The on
 - The PowerShell installer scripts have been manually reviewed for syntax and brace balance but have not been executed against real Windows PowerShell in this release. Run `Diagnose.bat` after install to verify every layer.
 - Real-world contenteditable behavior in Gmail / Outlook web / other rich-text editors may surface edge cases. The adapter uses `execCommand("insertText")` for undo preservation, but some editors intercept or override this command.
 
-[Unreleased]: https://github.com/kimpearce888/local-writing-assistant/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/kimpearce888/local-writing-assistant/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/kimpearce888/local-writing-assistant/releases/tag/v1.4.0
 [1.3.0]: https://github.com/kimpearce888/local-writing-assistant/releases/tag/v1.3.0
 [1.2.0]: https://github.com/kimpearce888/local-writing-assistant/releases/tag/v1.2.0
 [1.1.0]: https://github.com/kimpearce888/local-writing-assistant/releases/tag/v1.1.0

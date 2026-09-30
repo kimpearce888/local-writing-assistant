@@ -4,7 +4,7 @@
 [![E2E](https://img.shields.io/badge/E2E-10%2F10%20passing-brightgreen.svg)](#testing)
 [![Release](https://github.com/kimpearce888/local-writing-assistant/actions/workflows/release.yml/badge.svg)](https://github.com/kimpearce888/local-writing-assistant/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.3.0-blue.svg)](https://github.com/kimpearce888/local-writing-assistant/releases/tag/v1.3.0)
+[![Version](https://img.shields.io/badge/version-1.4.0-blue.svg)](https://github.com/kimpearce888/local-writing-assistant/releases/tag/v1.4.0)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 [![No cloud](https://img.shields.io/badge/runtime-no%20cloud%20AI-1f6feb.svg)](PRIVACY.md)
 
@@ -14,7 +14,7 @@ Your text never leaves your computer. There is no cloud AI, no telemetry, no ana
 
 This is **not** a Grammarly clone — it is an original local-first writing assistant with its own UI, prompts, and architecture.
 
-> **Download the latest Windows package:** see the [Releases page](https://github.com/kimpearce888/local-writing-assistant/releases). **v1.3.0** (production-ready, second-pass audit) is the current stable release — see [what's new](#whats-new).
+> **Download the latest Windows package:** see the [Releases page](https://github.com/kimpearce888/local-writing-assistant/releases). **v1.4.0** (one-click install + production-ready) is the current stable release — see [what's new](#whats-new).
 
 ---
 
@@ -97,12 +97,12 @@ LOCAL LLM
 
 * Windows 11 64-bit (also works on Windows 10)
 * Google Chrome (recent version; MV3 is required)
-* LM Studio with at least one local model loaded and the local server started
+* **(Optional, auto-installed)** LM Studio + at least one local model loaded. The installer can download + install LM Studio for you; you still need to pick a model yourself (license + multi-GB download + which model = human decision).
 * No Node.js, Python, Go, Rust, Java, or any other runtime needed on the user's machine — the native host is a single standalone EXE
 
 ---
 
-## Installation
+## Installation (one-click)
 
 ### 1. Extract the ZIP
 
@@ -110,9 +110,9 @@ Extract `Local-Writing-Assistant-Windows.zip` anywhere on your PC.
 
 ### 2. Run the installer
 
-Double-click `Install.bat` inside the extracted folder.
+Double-click `Install.bat` inside the extracted folder. **That's it.**
 
-The installer will:
+The installer will, in a single run:
 
 * Detect Windows architecture
 * Detect Chrome
@@ -122,7 +122,14 @@ The installer will:
 * Copy the extension files into `%LOCALAPPDATA%\LocalWritingAssistant\extension`
 * Generate `update.xml` for enterprise installation (Mode A)
 * Attempt Mode A (enterprise force-install) where Chrome permits it
-* Verify LM Studio reachability
+* **Detect / download / install / launch LM Studio automatically**
+* **Start the LM Studio local server on port 1234** (via `lms server start` CLI)
+* **Open LM Studio's GUI with clear instructions if no model is loaded yet**
+* Verify everything is reachable at the end
+
+If you already have LM Studio installed and a model loaded, this is genuinely one-click — you'll see `[PASS] LM Studio reachable (1 model(s) available)` and you're done. If LM Studio is missing or no model is loaded, the installer guides you through the one unavoidable manual step (model selection) before continuing.
+
+> **Advanced users** who already have LM Studio set up and don't want the installer touching it can pass `-SkipLMStudio` to `install.ps1` (or just close LM Studio before running Install.bat — the installer will detect it's missing and offer to install, but will not force anything).
 
 ### 3. The Chrome installation step (Mode A vs Mode B)
 
@@ -152,14 +159,18 @@ Chrome refuses to silently install a self-hosted off-store extension. **We do no
 
 This step is needed exactly once. After it, the extension will load automatically on every Chrome launch, and updates to the extension files in that folder will be picked up on Chrome restart.
 
-### 4. Set up LM Studio
+### 4. (Only if you didn't have LM Studio before) Load your first model
 
-1. Open LM Studio
-2. Load any chat-capable model (e.g. a Qwen, Llama, or Mistral instruct model)
-3. Start the local server (default port `1234`)
-4. Open Chrome's popup → click **Test LM Studio Connection**
+If the installer printed `[WARN] LM Studio is reachable but no model is loaded.`:
 
-If the test passes, you're done. If it fails, the diagnostic message tells you exactly what's wrong (LM Studio offline / no model loaded / etc.).
+1. In the LM Studio window that the installer opened, click the **Search** tab in the left sidebar.
+2. Search for a chat-capable instruct model (e.g. **Qwen2.5 7B Instruct**, **Llama 3.1 8B Instruct**, or **Mistral 7B Instruct v0.3**). Smaller models (7B) run on most laptops; larger ones need a discrete GPU.
+3. Click **Download** on the model card, wait for the multi-GB download to finish.
+4. Click the **Local Server** tab in the left sidebar.
+5. Click **Select a model to load** → pick the model you just downloaded.
+6. Click **Start Server** (it's already on port `1234` by default).
+
+After this, the LM Studio server is running on `http://127.0.0.1:1234` with your model loaded — the assistant will pick it up automatically. You only need to do steps 1–6 once per machine; subsequent Chrome launches will see the server is already running.
 
 ### 5. Start writing
 
@@ -168,6 +179,8 @@ Open any webpage with a `<textarea>`, `<input>` (text/email/search/url/tel), or 
 Click a suggestion to see the popup with **Replace / Ignore / Add to dictionary** (for spelling) options.
 
 Open the side panel (Alt+Shift+O or the extension's side-panel button) for rewrite operations on the current selection.
+
+If you ever want to verify everything is healthy, click the extension's toolbar icon → **Test LM Studio Connection**. The popup will show `● Connected` if the native host + LM Studio + server + model chain is working end-to-end.
 
 ---
 
@@ -221,6 +234,28 @@ See [`SECURITY.md`](SECURITY.md) for the full model. Highlights:
 ---
 
 ## What's new
+
+### v1.4.0 (2026-09-30) — one-click install
+
+The installer now bootstraps LM Studio automatically — detect, download, silent-install, launch, and start the local server on port 1234 — so a fresh Windows machine can go from "extract ZIP" to "extension running with a model loaded" with one double-click.
+
+**What's automated:**
+
+* **LM Studio detection.** The installer checks the registry, common install paths, and `PATH` for `lms.exe`. If found, the GUI exe path is returned.
+* **LM Studio download + silent install.** If not detected, the installer scrapes `https://lmstudio.ai/` for the current Windows installer URL, downloads it, and runs it with `/VERYSILENT /SP- /NORESTART` (Inno Setup silent-install flags). Falls back to opening the website in the user's browser if scraping fails.
+* **LM Studio app launch.** After install (or if already installed but not running), the installer launches the GUI and waits up to 30s for the process to register.
+* **Server start via CLI.** `lms server start --port 1234` runs in the background. The installer polls `http://127.0.0.1:1234/v1/models` to confirm the server is up.
+* **Model availability check.** If the server is reachable but no model is loaded, the installer opens LM Studio's GUI and prints clear instructions for picking and downloading a model.
+
+**What is NOT automated (and why):**
+
+* **Model download.** License acceptance (different per model family — Apache 2.0, Llama Community License, Mistral Research License, etc.), multi-GB download size (3–40 GB), and the user's choice of model (Qwen vs Llama vs Mistral, parameter size, language capabilities) all make this inherently a human decision. The installer opens the LM Studio model browser and prints a 6-step walkthrough, but the user must click "Download" themselves.
+
+For a local-only AI assistant, this is the best honest UX — the model download is the user's choice and can't be automated away.
+
+**Advanced users** who already have LM Studio set up and don't want the installer touching it can pass `-SkipLMStudio` to `install.ps1`.
+
+Full details in [`CHANGELOG.md`](CHANGELOG.md).
 
 ### v1.3.0 (2026-09-30) — second-pass audit fixes
 

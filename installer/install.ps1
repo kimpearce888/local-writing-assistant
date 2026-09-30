@@ -32,7 +32,8 @@
 param(
   [string]$InstallDir = "",
   [switch]$Force,
-  [switch]$Silent
+  [switch]$Silent,
+  [switch]$SkipLMStudio  # Skip the LM Studio bootstrap (advanced users)
 )
 
 $ErrorActionPreference = "Stop"
@@ -389,23 +390,55 @@ if (-not (Test-Path $installExtDir)) { Write-Fail "Extension folder missing."; $
 else { Write-OK "Extension folder present." }
 
 # ---------------------------------------------------------------------------
-# 12. Try to verify LM Studio reachability (best-effort, non-blocking).
+# 12. LM Studio bootstrap: install / launch / start-server.
+#
+#     Previously this step was just a best-effort reachability check
+#     that printed "not reachable" and moved on — the user had to
+#     manually install LM Studio, load a model, and start the server
+#     before the extension would do anything useful.
+#
+#     We now call setup-lm-studio.ps1 which:
+#       - Detects LM Studio (registry + common paths + PATH)
+#       - If not installed: downloads + silent-installs from lmstudio.ai
+#       - If installed: launches the app
+#       - Checks server reachability on port 1234
+#       - If not running: tries `lms server start` via CLI
+#       - Falls back to opening LM Studio's GUI with clear instructions
+#
+#     Pass -SkipLMStudio to bypass this step (advanced users who want
+#     to manage LM Studio themselves).
 # ---------------------------------------------------------------------------
-Write-Step "Checking LM Studio reachability…"
-try {
-  $resp = Invoke-WebRequest -Uri "http://127.0.0.1:1234/v1/models" -UseBasicParsing -TimeoutSec 4 -ErrorAction Stop
-  if ($resp.StatusCode -eq 200) {
-    $j = $resp.Content | ConvertFrom-Json
-    $count = @($j.data).Count
-    if ($count -gt 0) {
-      Write-OK "LM Studio reachable ($count model(s) available)."
-    } else {
-      Write-Warn2 "LM Studio reachable but no model is loaded."
+if ($SkipLMStudio) {
+  Write-Warn2 "Skipping LM Studio bootstrap (-SkipLMStudio)."
+} else {
+  $setupScript = Join-Path $PSScriptRoot "setup-lm-studio.ps1"
+  if (Test-Path $setupScript) {
+    try {
+      & $setupScript -Silent:$Silent
+    } catch {
+      Write-Warn2 "LM Studio bootstrap failed: $_"
+      Write-Warn2 "The native host + extension are still installed; LM Studio setup can be done manually."
+    }
+  } else {
+    # Fall back to the old reachability check if setup-lm-studio.ps1
+    # is missing (e.g. older install package without it).
+    Write-Step "Checking LM Studio reachability…"
+    try {
+      $resp = Invoke-WebRequest -Uri "http://127.0.0.1:1234/v1/models" -UseBasicParsing -TimeoutSec 4 -ErrorAction Stop
+      if ($resp.StatusCode -eq 200) {
+        $j = $resp.Content | ConvertFrom-Json
+        $count = @($j.data).Count
+        if ($count -gt 0) {
+          Write-OK "LM Studio reachable ($count model(s) available)."
+        } else {
+          Write-Warn2 "LM Studio reachable but no model is loaded."
+        }
+      }
+    } catch {
+      Write-Warn2 "LM Studio not reachable on http://127.0.0.1:1234."
+      Write-Warn2 "Open LM Studio, load a model, and start the local server."
     }
   }
-} catch {
-  Write-Warn2 "LM Studio not reachable on http://127.0.0.1:1234."
-  Write-Warn2 "Open LM Studio, load a model, and start the local server."
 }
 
 # ---------------------------------------------------------------------------
