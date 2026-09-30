@@ -11,6 +11,10 @@ A **fully local** AI writing assistant for Chrome on Windows, powered by [LM Stu
 
 Your text never leaves your computer. No cloud AI, no telemetry, no account. The only engine is LM Studio running on your own machine — the architecture makes the privacy promise unbreakable by construction.
 
+<p align="center">
+  <img src="docs/screenshots/suggestion-popup.png" alt="Inline grammar suggestion popup over a real email compose UI — the word 'don\'t have' is underlined and a popup offers Replace / Ignore / Add to dictionary" width="720" />
+</p>
+
 > **v1.4.0** — one-click install now auto-bootstraps LM Studio. [See what's new →](#whats-new)
 
 ---
@@ -30,6 +34,19 @@ Cloud-AI writing assistants have three problems: **privacy** (your draft cover l
 * Side panel for selection-based rewrites
 * Custom dictionary, per-site exclusions, per-site pause
 * Diagnostics tool, light/dark mode, settings import/export
+
+<table>
+  <tr>
+    <td width="50%" align="center" valign="top">
+      <img src="docs/screenshots/popup-connected.png" alt="Extension popup showing connected status and model loaded" width="280" /><br/>
+      <sub><b>Popup</b> — connection status, model, suggestion count, per-site controls</sub>
+    </td>
+    <td width="50%" align="center" valign="top">
+      <img src="docs/screenshots/side-panel-rewrite.png" alt="Side panel showing rewrite flow with selected text and result" width="320" /><br/>
+      <sub><b>Side panel</b> — rewrite the selection: improve, shorter, professional, custom…</sub>
+    </td>
+  </tr>
+</table>
 
 ---
 
@@ -78,7 +95,7 @@ WEB PAGE  →  CONTENT SCRIPT  →  SERVICE WORKER  →  NATIVE MESSAGING  →  
 
 Four layers, each a separate security boundary. The Go host accepts only 6 known commands (`ping`, `get_config`, `get_models`, `check_connection`, `grammar_check`, `rewrite`), exposes no shell/exec capability, and its custom HTTP dialer refuses any non-loopback destination — even a misconfigured URL can't escape the local machine.
 
-Full details: [`PRIVACY.md`](PRIVACY.md) · [`SECURITY.md`](SECURITY.md) · [`DEVELOPMENT.md`](DEVELOPMENT.md).
+Full details: [`PRIVACY.md`](PRIVACY.md) · [`SECURITY.md`](SECURITY.md) · [`DEVELOPMENT.md`](DEVELOPMENT.md). The full options page (dictionary, site exclusions, diagnostics, LM Studio config) is shown in [`docs/screenshots/options-page.png`](docs/screenshots/options-page.png).
 
 ---
 

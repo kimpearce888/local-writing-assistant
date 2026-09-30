@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Compose — Demo Mail</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 0;
+      font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f0f2f5;
+      color: #1c1e21;
+    }
+    .topbar {
+      background: #ffffff;
+      border-bottom: 1px solid #dadde1;
+      padding: 10px 24px;
+      display: flex; align-items: center; gap: 12px;
+    }
+    .topbar .logo {
+      width: 28px; height: 28px; border-radius: 6px;
+      background: linear-gradient(135deg, #1a73e8, #4285f4);
+      display: flex; align-items: center; justify-content: center;
+      color: white; font-weight: 700; font-size: 14px;
+    }
+    .topbar h1 { font-size: 15px; margin: 0; font-weight: 500; color: #1c1e21; }
+    .topbar .subtitle { font-size: 12px; color: #65676b; }
+    .container {
+      max-width: 760px; margin: 32px auto 64px;
+      background: #ffffff; border-radius: 8px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.08), 0 2px 8px rgba(0,0,0,0.04);
+      overflow: hidden;
+    }
+    .compose-header {
+      padding: 16px 24px; border-bottom: 1px solid #dadde1;
+      background: #fafbfc;
+    }
+    .compose-header h2 { margin: 0 0 4px; font-size: 18px; font-weight: 600; }
+    .compose-header .meta { font-size: 12px; color: #65676b; }
+    .field {
+      padding: 12px 24px; border-bottom: 1px solid #e4e6eb;
+      display: flex; align-items: baseline; gap: 12px;
+    }
+    .field label {
+      font-size: 11px; font-weight: 600; color: #65676b;
+      text-transform: uppercase; letter-spacing: 0.5px;
+      min-width: 50px;
+    }
+    .field input, .field textarea {
+      flex: 1; border: none; outline: none;
+      font: inherit; padding: 4px 0; background: transparent; color: inherit;
+      resize: none;
+    }
+    .field textarea {
+      min-height: 220px; line-height: 1.6;
+    }
+    .field input { font-size: 14px; }
+    .actions {
+      padding: 16px 24px; background: #fafbfc;
+      display: flex; gap: 8px; justify-content: flex-end;
+      border-top: 1px solid #e4e6eb;
+    }
+    .btn {
+      padding: 8px 18px; border-radius: 6px; border: 1px solid transparent;
+      cursor: pointer; font: inherit; font-weight: 500;
+    }
+    .btn-secondary { background: #fff; color: #1c1e21; border-color: #dadde1; }
+    .btn-primary { background: #1a73e8; color: #fff; }
+    .btn-primary:hover { background: #1765cc; }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="logo">M</div>
+    <div>
+      <h1>Demo Mail</h1>
+      <div class="subtitle">Compose new message</div>
+    </div>
+  </div>
+  <div class="container">
+    <div class="compose-header">
+      <h2>Project update — Q3 roadmap review</h2>
+      <div class="meta">Draft · Auto-saved 2 min ago</div>
+    </div>
+    <div class="field">
+      <label>To</label>
+      <input type="text" value="sarah.chen@example.com" readonly />
+    </div>
+    <div class="field">
+      <label>Subject</label>
+      <input type="text" value="Project update — Q3 roadmap review" readonly />
+    </div>
+    <div class="field">
+      <label>Body</label>
+      <div id="editor" contenteditable="true" spellcheck="false" style="min-height: 220px; line-height: 1.6; padding: 4px 0; outline: none; white-space: pre-wrap; word-wrap: break-word;">Hi Sarah,
+
+I wanted to follow up on the Q3 roadmap we discussed last week. The team don't have a clear sense of priorities yet, and I think we should revisit the scope before the next milestone.
+
+Could we set up a 30-minute call on Thursday to align? I'll send a calendar invite separately.
+
+Thanks,
+Alex</div>
+    </div>
+    <div class="actions">
+      <button class="btn btn-secondary">Save draft</button>
+      <button class="btn btn-primary">Send</button>
+    </div>
+  </div>
+</body>
+</html>

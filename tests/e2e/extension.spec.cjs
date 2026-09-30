@@ -14,7 +14,7 @@ const {
   EXTENSION_ID,
   ROOT,
   ensureHttpServer,
-} = require("./fixtures/extension.js");
+} = require("./fixtures/extension.cjs");
 const path = require("node:path");
 
 async function openPage(context, pageName) {

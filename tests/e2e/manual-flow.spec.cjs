@@ -12,7 +12,7 @@ const {
   launchExtensionContext,
   EXTENSION_ID,
   ROOT,
-} = require("./fixtures/extension.js");
+} = require("./fixtures/extension.cjs");
 const path = require("node:path");
 const fs = require("node:fs");
 const http = require("node:http");
