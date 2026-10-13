@@ -24,7 +24,7 @@
     "icons": "node scripts/generate-icons.cjs"
   },
   "devDependencies": {
-    "@playwright/test": "^1.63.0",
+    "@playwright/test": "^1.64.0",
     "jsdom": "^30.1.1",
     "vitest": "^5.0.2"
   }
