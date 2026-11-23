@@ -98,6 +98,25 @@ jobs:
         working-directory: extension
         run: npm run build
 
+      # ---- Assemble the ZIPs (Windows + Linux) ----
+      # NB: package.cjs wipes dist/ first, so anything written to dist/
+      # earlier would be lost. The CRX build runs AFTER packaging for
+      # exactly this reason.
+      - name: Package ZIPs
+        run: node scripts/package.cjs
+
+      - name: Verify ZIPs exist
+        run: |
+          ls -la dist/Local-Writing-Assistant-Windows.zip
+          ls -la dist/Local-Writing-Assistant-Linux.zip
+          test -f dist/Local-Writing-Assistant-Windows.zip
+          test -f dist/Local-Writing-Assistant-Linux.zip
+          # Print top-level contents of each ZIP for the release log.
+          echo "--- Windows ZIP contents ---"
+          unzip -l dist/Local-Writing-Assistant-Windows.zip | head -25
+          echo "--- Linux ZIP contents ---"
+          unzip -l dist/Local-Writing-Assistant-Linux.zip | head -25
+
       # ---- Optionally build the signed CRX3 (only if the signing key
       # secret is configured). When the secret is absent we just ship
       # the ZIP, which works for Mode B installs. ----
@@ -119,25 +138,7 @@ jobs:
           # workflow, so the script always failed and silently
           # skipped the CRX build under set -euo pipefail).
           node scripts/build-crx.cjs
-          # Place the CRX next to the ZIP so both are uploaded.
-          cp dist/extension.crx dist/Local-Writing-Assistant-Windows.crx
           sha256sum dist/extension.crx > dist/extension.crx.sha256
-
-      # ---- Assemble the ZIPs (Windows + Linux) ----
-      - name: Package ZIPs
-        run: node scripts/package.cjs
-
-      - name: Verify ZIPs exist
-        run: |
-          ls -la dist/Local-Writing-Assistant-Windows.zip
-          ls -la dist/Local-Writing-Assistant-Linux.zip
-          test -f dist/Local-Writing-Assistant-Windows.zip
-          test -f dist/Local-Writing-Assistant-Linux.zip
-          # Print top-level contents of each ZIP for the release log.
-          echo "--- Windows ZIP contents ---"
-          unzip -l dist/Local-Writing-Assistant-Windows.zip | head -25
-          echo "--- Linux ZIP contents ---"
-          unzip -l dist/Local-Writing-Assistant-Linux.zip | head -25
 
       # ---- Publish ----
       - name: Create or update GitHub Release
@@ -149,11 +150,14 @@ jobs:
           generate_release_notes: true
           draft: false
           prerelease: false
+          # The *.crx / *.sha256 globs match nothing on ZIP-only releases
+          # (no CRX_SIGNING_KEY secret), which is fine — unmatched GLOBs
+          # are ignored, but a literal missing file would fail the step.
           files: |
             dist/Local-Writing-Assistant-Windows.zip
             dist/Local-Writing-Assistant-Linux.zip
-            dist/Local-Writing-Assistant-Windows.crx
-            dist/extension.crx.sha256
+            dist/*.crx
+            dist/*.sha256
           body: |
             ## Download
 

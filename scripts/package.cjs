@@ -169,8 +169,6 @@ function zipFor(platform) {
   const zipName = platform === "windows"
     ? "Local-Writing-Assistant-Windows.zip"
     : "Local-Writing-Assistant-Linux.zip";
-  rmrf(DIST);
-  mkdirp(DIST);
   try {
     execSync(`zip -r "${path.join(DIST, zipName)}" "${TOP_DIR}"`, {
       cwd: STAGE,
@@ -195,6 +193,11 @@ function packagePlatform(platform) {
 }
 
 function main() {
+  // Clean dist/ exactly ONCE, before any platform is packaged. Cleaning
+  // per-platform here would delete the previous platform's ZIP (the Linux
+  // pass used to wipe the Windows ZIP that had just been written).
+  rmrf(DIST);
+  mkdirp(DIST);
   if (wantWindows) packagePlatform("windows");
   if (wantLinux) packagePlatform("linux");
 }

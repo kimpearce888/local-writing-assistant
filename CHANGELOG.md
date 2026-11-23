@@ -8,6 +8,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 _No unreleased changes yet._
 
+## [1.5.2] — 2026-11-23
+
+Release-pipeline fix. The v1.5.1 tag build failed in GitHub Actions: the "Verify ZIPs exist" step could not find `Local-Writing-Assistant-Windows.zip` even though it had just been written.
+
+### Fixed
+
+- **Packager deleted the previous platform's ZIP.** `scripts/package.cjs` wiped `dist/` at the start of *each* platform's packaging pass, so the Linux pass (second) deleted the freshly-written Windows ZIP. `dist/` is now cleaned exactly once, before any platform is packaged, and both ZIPs are produced side by side.
+- **CRX build output was wiped before upload.** The signed-CRX3 step ran *before* packaging, so its output in `dist/` was deleted by the packager's cleanup even when the signing secret was configured. The CRX step now runs after packaging and writes straight into the final `dist/`.
+- **Release upload would fail on ZIP-only releases.** The `files:` list named `dist/Local-Writing-Assistant-Windows.crx` and `dist/extension.crx.sha256` literally; when no CRX signing secret is set those files don't exist and the release step aborts. The list now uses `dist/*.crx` / `dist/*.sha256` globs, which match nothing (harmlessly) on ZIP-only releases.
+
 ## [1.5.1] — 2026-11-23
 
 Bug fix release. Fixes a real product bug found during end-to-end verification, plus test-infrastructure hardening that made the E2E suite deterministic.
