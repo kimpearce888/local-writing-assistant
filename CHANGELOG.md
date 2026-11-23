@@ -6,7 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
-_No unreleased changes yet._
+### Added
+
+- **`npm run test:unit`** — dedicated script for the vitest unit suite, so the full `npm test` (unit + native + integration) and unit-only runs are both one command. `DEVELOPMENT.md` updated to match.
 
 ## [1.5.2] — 2026-11-23
 
