@@ -12,7 +12,7 @@
  *  - return strict JSON
  */
 
-import { RewriteOperation, ToneMode } from "./types";
+import { ANALYSIS_OPERATIONS, RewriteOperation, ToneMode } from "./types";
 
 const COMMON_RULES = `
 You are a writing-assistant analyzer running fully locally on the user's machine.
@@ -86,6 +86,40 @@ export function buildRewritePrompt(opts: {
     friendly: "Rewrite the text to sound warm and friendly, while preserving meaning.",
     formal: "Rewrite the text to sound formal, while preserving meaning.",
     simplify: "Simplify the language so a non-expert can understand it, while preserving meaning.",
+    "clean-up-notes":
+      "Clean up these notes: organize them logically, remove filler words and duplicates, fix sentence fragments, and make them readable. Preserve every fact and keep the note-like structure where sensible.",
+    descriptive:
+      "Make the text more vivid and descriptive using concrete, specific language, while preserving the meaning and not inventing facts.",
+    detailed:
+      "Expand the text with useful detail and explanation so it is more complete. Only add information that follows directly from what is already there; no padding, no invented facts.",
+    informative:
+      "Rewrite the text to be more informative: lead with the key information, add clarifying context that follows from the text itself, and remove vague phrasing.",
+    paraphrase:
+      "Paraphrase the text: express the same meaning in different wording and sentence structure, keeping a similar length.",
+    summarize:
+      "Summarize the text into a clearly shorter version that keeps all key points. The result must be noticeably shorter than the input.",
+    "fix-mistakes":
+      "Fix spelling, grammar, and punctuation mistakes only. Change as little as possible; do not restyle sentences that are already correct.",
+    fluent:
+      "Make the text flow more naturally and read smoothly: fix awkward phrasing and choppy rhythm while preserving meaning.",
+    objective:
+      "Rewrite the text to be objective and neutral: remove bias, hype, and subjective language while keeping all facts intact.",
+    "general-audience":
+      "Rewrite for a general audience: plain everyday language, no unexplained jargon, short clear sentences. Preserve the meaning.",
+    "esl-audience":
+      "Rewrite for an English-as-a-second-language audience: very simple words, short clear sentences, active voice, and no idioms, slang, or cultural references that need background knowledge. Preserve the meaning.",
+    "expert-audience":
+      "Rewrite for an expert audience: precise terminology, dense efficient phrasing, and no hand-holding; assume full domain knowledge. Preserve the meaning.",
+    tldr:
+      "Create a TL;DR: one to three sentences capturing the single most important takeaway of the text. Do not add information that is not in the text.",
+    "bullets-to-prose":
+      "Turn the bulleted or list-form text into flowing prose paragraphs. Keep every point, use natural transitions between them, and do not invent new points.",
+    "main-point":
+      "Identify the single main point of the text and state it in one or two sentences, then briefly list any secondary points if present.",
+    gaps:
+      "Identify gaps in the text: what is missing, under-specified, or unsupported that a reader would need. Be specific and concise; quote the relevant part when helpful.",
+    "improvement-ideas":
+      "Give concrete ideas for improving this text (structure, clarity, evidence, tone). Provide a short prioritized list of the most impactful changes.",
     // For the custom operation, the user's customInstruction is wrapped
     // in <user_instruction> tags so the model can't confuse it with our
     // system rules. Even if the user types "ignore previous instructions
@@ -99,14 +133,21 @@ export function buildRewritePrompt(opts: {
     opts.operation === "custom" && opts.customInstruction
       ? `\n<user_instruction>${opts.customInstruction}</user_instruction>\n`
       : "";
+  // Analysis operations (Evaluate menu) must NOT rewrite the text. They
+  // reuse the same JSON envelope so validation stays identical: the
+  // analysis goes in the "rewritten" field and the UI disables Replace.
+  const analysisBlock = ANALYSIS_OPERATIONS.has(opts.operation)
+    ? `
+Do NOT rewrite, summarize-into-replacement, or alter the user's text. This is an analysis request: put your full analysis in the "rewritten" field as plain text (short lines or bullets are fine), and leave "explanation" empty.`
+    : "";
   return {
     system: `${COMMON_RULES}
 
-${opDescriptions[opts.operation]}${customBlock}
+${opDescriptions[opts.operation]}${customBlock}${analysisBlock}
 Return ONLY JSON in this shape:
 {
-  "rewritten": "<rewritten text>",
-  "explanation": "<one short sentence describing the change>"
+  "rewritten": "<${ANALYSIS_OPERATIONS.has(opts.operation) ? "your analysis" : "rewritten text"}>",
+  "explanation": "<one short sentence describing the change, or empty>"
 }`,
   };
 }
@@ -122,6 +163,30 @@ export function buildTonePrompt(opts: { tone: ToneMode }): {
     casual: "Adjust tone to be casual and conversational.",
     concise: "Adjust tone to be concise and direct.",
     confident: "Adjust tone to be confident and assertive.",
+    anticipatory:
+      "Adjust the tone to be anticipatory: address likely questions, objections, and concerns before the reader raises them. Do not invent facts.",
+    assertive:
+      "Adjust the tone to be assertive: firm, direct, and self-assured without being aggressive or rude.",
+    compassionate:
+      "Adjust the tone to be compassionate: warm, caring, and understanding of the reader's situation.",
+    constructive:
+      "Adjust the tone to be constructive: solution-focused and encouraging while remaining honest about problems.",
+    cooperative:
+      "Adjust the tone to be cooperative: collaborative, 'we'-oriented, and open to input and shared ownership.",
+    diplomatic:
+      "Adjust the tone to be diplomatic: tactful, balanced, and mindful of sensitivities; avoid blame and absolutes.",
+    empathetic:
+      "Adjust the tone to be empathetic: acknowledge feelings and show genuine understanding of the reader's perspective.",
+    inspirational:
+      "Adjust the tone to be inspirational: uplifting and motivating while staying truthful — no exaggerated claims.",
+    exciting:
+      "Adjust the tone to be exciting: energetic, enthusiastic, and vivid without exaggerating the facts.",
+    engaging:
+      "Adjust the tone to be engaging: reader-focused, vivid, and compelling; vary rhythm and hook the reader. Do not invent facts.",
+    persuasive:
+      "Adjust the tone to be persuasive: make a compelling case with clear benefits and reasoning. Argue only from information present in the text — do not invent evidence.",
+    direct:
+      "Adjust the tone to be direct: get to the point quickly, no hedging, filler, or unnecessary qualifiers.",
   };
   return {
     system: `${COMMON_RULES}

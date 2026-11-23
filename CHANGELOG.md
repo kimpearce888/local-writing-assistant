@@ -15,6 +15,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - **"No model selected" despite a model being chosen.** The options page could DISPLAY a model while storage still held an empty string — a display-only `<select>` selection fires no `change` event, so the choice was never persisted and every rewrite failed with `LM_STUDIO_NO_MODEL`. The options page now auto-selects the first available model when the saved value is empty or stale **and saves it immediately**, so the UI and storage always agree.
 - **Native host: empty model now falls back instead of failing.** When the extension sends no model, the host asks LM Studio for its model list and uses the first chat-capable one (embedding-only models are skipped — they cannot serve `/v1/chat/completions`). It still fails cleanly with `LM_STUDIO_NO_MODEL` when the server is unreachable or has no models. Covered by two new deterministic integration tests (offline-server rejection + fallback-to-first-chat-model against a mock OpenAI endpoint).
 
+## [1.6.0] — 2026-11-24
+
+### Added
+
+- **Full categorized action menu in the Rewrite side panel**, matching the reference layout:
+  - **Rewrite** — Improve it, Shorten it, Clean up notes, Sound professional, Make it more descriptive, Make it more detailed, Simplify it, Make it informative, Paraphrase it, Summarize it, Fix any mistakes, Sound fluent, Make it objective, Rewrite for a general audience, Rewrite for an ESL audience, Rewrite for an expert audience.
+  - **Write** — Create a TL;DR, Turn bullets to prose.
+  - **Evaluate** — Pick out my main point, Identify any gaps, Give me ideas for improvement. These return an *analysis* of the selection: Replace is disabled for them (Copy still works), so an analysis can never overwrite your text.
+  - **Adjust tone** — Sound anticipatory, Make it assertive, Sound compassionate, Sound confident, Make it constructive, Sound cooperative, Make it diplomatic, Make it empathetic, Make it friendly, Make it inspirational, Make it exciting, Sound casual, Sound formal, Make it engaging, Make it persuasive, Make it direct.
+- **12 new tone modes** (anticipatory, assertive, compassionate, constructive, cooperative, diplomatic, empathetic, inspirational, exciting, engaging, persuasive, direct), also selectable on the Options page.
+- Prompt-injection-safe prompts for every new action; Evaluate prompts explicitly forbid rewriting the text. Exhaustive unit tests now cover all 25 rewrite operations and all 19 tone modes.
+
+### Fixed
+
+- **Orphaned HTML copies could silently swallow UI changes.** The repo tracked duplicate page files under `extension/src/{options,popup,sidepanel}/*.html` that no build step ever used — Vite's real entries are the root-level `extension/*.html`. Edits to the `src/` copies (including docs that pointed contributors at them) had no effect on the shipped extension. The dead copies are deleted and DEVELOPMENT.md / CONTRIBUTING.md now point at the files that actually build.
+
 ## [1.5.2] — 2026-11-23
 
 Release-pipeline fix. The v1.5.1 tag build failed in GitHub Actions: the "Verify ZIPs exist" step could not find `Local-Writing-Assistant-Windows.zip` even though it had just been written.

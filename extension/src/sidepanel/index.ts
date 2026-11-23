@@ -7,9 +7,93 @@
  * content script with the expected text hash for stale-result detection.
  */
 
-import { RewriteOperation } from "../shared/types";
+import {
+  ANALYSIS_OPERATIONS,
+  RewriteOperation,
+  ToneMode,
+} from "../shared/types";
 
 const $ = (id: string) => document.getElementById(id) as HTMLElement | null;
+
+/**
+ * The full action menu, grouped exactly like the reference product:
+ * Rewrite / Write / Evaluate / Adjust tone. `kind: "op"` actions run
+ * through the rewrite command; `kind: "tone"` through the tone command.
+ * Evaluate actions are analysis-only — Replace is disabled for them.
+ */
+type ActionKind = "op" | "tone";
+
+interface ActionDef {
+  kind: ActionKind;
+  id: string;
+  label: string;
+  icon: string;
+}
+
+interface CategoryDef {
+  title: string;
+  actions: ActionDef[];
+}
+
+const CATEGORIES: CategoryDef[] = [
+  {
+    title: "Rewrite",
+    actions: [
+      { kind: "op", id: "improve", label: "Improve it", icon: "✨" },
+      { kind: "op", id: "shorter", label: "Shorten it", icon: "✂️" },
+      { kind: "op", id: "clean-up-notes", label: "Clean up notes", icon: "📝" },
+      { kind: "op", id: "professional", label: "Sound professional", icon: "💼" },
+      { kind: "op", id: "descriptive", label: "Make it more descriptive", icon: "🖋️" },
+      { kind: "op", id: "detailed", label: "Make it more detailed", icon: "🗂️" },
+      { kind: "op", id: "simplify", label: "Simplify it", icon: "🧑‍🏫" },
+      { kind: "op", id: "informative", label: "Make it informative", icon: "🤓" },
+      { kind: "op", id: "paraphrase", label: "Paraphrase it", icon: "🔄" },
+      { kind: "op", id: "summarize", label: "Summarize it", icon: "📋" },
+      { kind: "op", id: "fix-mistakes", label: "Fix any mistakes", icon: "🔧" },
+      { kind: "op", id: "fluent", label: "Sound fluent", icon: "💬" },
+      { kind: "op", id: "objective", label: "Make it objective", icon: "⚖️" },
+      { kind: "op", id: "general-audience", label: "Rewrite for a general audience", icon: "🌍" },
+      { kind: "op", id: "esl-audience", label: "Rewrite for an ESL audience", icon: "🗣️" },
+      { kind: "op", id: "expert-audience", label: "Rewrite for an expert audience", icon: "🎓" },
+    ],
+  },
+  {
+    title: "Write",
+    actions: [
+      { kind: "op", id: "tldr", label: "Create a TL;DR", icon: "📄" },
+      { kind: "op", id: "bullets-to-prose", label: "Turn bullets to prose", icon: "➡️" },
+    ],
+  },
+  {
+    title: "Evaluate",
+    actions: [
+      { kind: "op", id: "main-point", label: "Pick out my main point", icon: "🏷️" },
+      { kind: "op", id: "gaps", label: "Identify any gaps", icon: "🔍" },
+      { kind: "op", id: "improvement-ideas", label: "Give me ideas for improvement", icon: "💡" },
+    ],
+  },
+  {
+    title: "Adjust tone",
+    actions: [
+      { kind: "tone", id: "anticipatory", label: "Sound anticipatory", icon: "👆" },
+      { kind: "tone", id: "assertive", label: "Make it assertive", icon: "👉" },
+      { kind: "tone", id: "compassionate", label: "Sound compassionate", icon: "🤗" },
+      { kind: "tone", id: "confident", label: "Sound confident", icon: "🤝" },
+      { kind: "tone", id: "constructive", label: "Make it constructive", icon: "👏" },
+      { kind: "tone", id: "cooperative", label: "Sound cooperative", icon: "⭐" },
+      { kind: "tone", id: "diplomatic", label: "Make it diplomatic", icon: "😊" },
+      { kind: "tone", id: "empathetic", label: "Make it empathetic", icon: "🥳" },
+      { kind: "tone", id: "friendly", label: "Make it friendly", icon: "😄" },
+      { kind: "tone", id: "inspirational", label: "Make it inspirational", icon: "🌟" },
+      { kind: "tone", id: "exciting", label: "Make it exciting", icon: "🤩" },
+      { kind: "tone", id: "casual", label: "Sound casual", icon: "👕" },
+      { kind: "tone", id: "formal", label: "Sound formal", icon: "🎩" },
+      { kind: "tone", id: "engaging", label: "Make it engaging", icon: "🧲" },
+      { kind: "tone", id: "persuasive", label: "Make it persuasive", icon: "🎯" },
+      { kind: "tone", id: "direct", label: "Make it direct", icon: "📍" },
+    ],
+  },
+];
 
 interface RewriteState {
   text: string;
@@ -60,6 +144,8 @@ async function runOp(op: RewriteOperation, customInstruction?: string): Promise<
   }
   setErr(null);
   setText($("resultText") as HTMLElement, "");
+  const isAnalysis = ANALYSIS_OPERATIONS.has(op);
+  setReplaceEnabled(false, isAnalysis ? undefined : "Run the action first");
   const res = (await chrome.runtime.sendMessage({
     type: "side-panel-run-rewrite",
     text: state.text,
@@ -72,15 +158,82 @@ async function runOp(op: RewriteOperation, customInstruction?: string): Promise<
   }
   state.rewritten = res.rewritten ?? "";
   setText($("resultText") as HTMLElement, state.rewritten);
+  if (isAnalysis) {
+    // Analysis results must never replace the user's text.
+    setReplaceEnabled(false, "This is an analysis of your text — use Copy to take it with you.");
+    setErr(null);
+  } else {
+    setReplaceEnabled(true);
+  }
+}
+
+async function runTone(tone: ToneMode): Promise<void> {
+  if (!state.text.trim()) {
+    setErr("Select some text in the page first.");
+    return;
+  }
+  setErr(null);
+  setText($("resultText") as HTMLElement, "");
+  setReplaceEnabled(false, "Run the action first");
+  const res = (await chrome.runtime.sendMessage({
+    type: "side-panel-run-tone",
+    text: state.text,
+    tone,
+  })) as { ok: boolean; rewritten?: string; explanation?: string; error?: string } | null;
+  if (!res?.ok) {
+    setErr(res?.error ?? "tone change failed");
+    return;
+  }
+  state.rewritten = res.rewritten ?? "";
+  setText($("resultText") as HTMLElement, state.rewritten);
+  setReplaceEnabled(true);
+}
+
+function renderActionMenu(): void {
+  const menu = $("actionMenu");
+  if (!menu) return;
+  menu.textContent = "";
+  for (const cat of CATEGORIES) {
+    const section = document.createElement("section");
+    section.className = "action-cat";
+    const h = document.createElement("h2");
+    h.className = "cat-title";
+    h.textContent = cat.title;
+    section.appendChild(h);
+    for (const action of cat.actions) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "action-item";
+      const icon = document.createElement("span");
+      icon.className = "action-icon";
+      icon.textContent = action.icon;
+      icon.setAttribute("aria-hidden", "true");
+      const label = document.createElement("span");
+      label.className = "action-label";
+      label.textContent = action.label;
+      btn.append(icon, label);
+      btn.addEventListener("click", () => {
+        if (action.kind === "tone") {
+          void runTone(action.id as ToneMode);
+        } else {
+          void runOp(action.id as RewriteOperation);
+        }
+      });
+      section.appendChild(btn);
+    }
+    menu.appendChild(section);
+  }
+}
+
+function setReplaceEnabled(enabled: boolean, note?: string): void {
+  const btn = $("replaceBtn") as HTMLButtonElement | null;
+  if (!btn) return;
+  btn.disabled = !enabled;
+  btn.title = enabled ? "Replace the selected text with the result" : note ?? "";
 }
 
 function hookActions(): void {
-  document.querySelectorAll<HTMLButtonElement>("[data-op]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const op = btn.getAttribute("data-op") as RewriteOperation;
-      void runOp(op);
-    });
-  });
+  renderActionMenu();
   ($("runCustom") as HTMLElement).addEventListener("click", () => {
     const custom = ($("customInstruction") as HTMLInputElement).value.trim();
     void runOp("custom", custom);
@@ -133,6 +286,7 @@ chrome.runtime.onMessage.addListener((msg) => {
     state.expectedHash = msg.expectedHash as string | undefined;
     setText($("selectedText") as HTMLElement, state.text);
     setText($("resultText") as HTMLElement, "");
+    setReplaceEnabled(false, "Run an action first");
   }
 });
 

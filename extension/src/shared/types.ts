@@ -67,6 +67,7 @@ export interface GrammarCheckResponse {
 
 /** Rewrite operation labels used in the UI and sent to the native host. */
 export type RewriteOperation =
+  // Core rewrite actions
   | "improve"
   | "shorter"
   | "clearer"
@@ -74,7 +75,37 @@ export type RewriteOperation =
   | "friendly"
   | "formal"
   | "simplify"
-  | "custom";
+  | "custom"
+  // Rewrite menu (added in v1.6)
+  | "clean-up-notes"
+  | "descriptive"
+  | "detailed"
+  | "informative"
+  | "paraphrase"
+  | "summarize"
+  | "fix-mistakes"
+  | "fluent"
+  | "objective"
+  | "general-audience"
+  | "esl-audience"
+  | "expert-audience"
+  // Write menu
+  | "tldr"
+  | "bullets-to-prose"
+  // Evaluate menu — analysis only, never replaces the selection
+  | "main-point"
+  | "gaps"
+  | "improvement-ideas";
+
+/**
+ * Operations that return an *analysis* of the text instead of a rewrite.
+ * The side panel disables Replace for these results.
+ */
+export const ANALYSIS_OPERATIONS: ReadonlySet<RewriteOperation> = new Set([
+  "main-point",
+  "gaps",
+  "improvement-ideas",
+]);
 
 export type ToneMode =
   | "neutral"
@@ -83,7 +114,20 @@ export type ToneMode =
   | "formal"
   | "casual"
   | "concise"
-  | "confident";
+  | "confident"
+  // Adjust-tone menu (added in v1.6)
+  | "anticipatory"
+  | "assertive"
+  | "compassionate"
+  | "constructive"
+  | "cooperative"
+  | "diplomatic"
+  | "empathetic"
+  | "inspirational"
+  | "exciting"
+  | "engaging"
+  | "persuasive"
+  | "direct";
 
 /** Request envelope sent to the native host. */
 export interface NativeRequest {

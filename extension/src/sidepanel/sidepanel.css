@@ -42,22 +42,39 @@ section h2 {
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
-.actions {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 6px;
+/* Categorized action menu (Rewrite / Write / Evaluate / Adjust tone). */
+.action-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
-.actions button {
-  appearance: none;
-  border: 1px solid var(--border);
+.action-cat { display: flex; flex-direction: column; }
+.cat-title {
+  margin: 0 0 4px 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--fg);
+  text-transform: none;
+  letter-spacing: normal;
+}
+.action-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  border: none;
+  border-bottom: 1px solid var(--border);
   background: var(--bg);
   color: var(--fg);
-  padding: 7px 8px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 12px;
+  padding: 7px 4px;
+  border-radius: 0;
+  text-align: left;
+  font-size: 13px;
 }
-.actions button:hover { filter: brightness(0.97); }
+.action-item:last-child { border-bottom: none; }
+.action-item:hover { background: var(--card); filter: none; }
+.action-icon { width: 20px; text-align: center; flex: none; }
+.action-label { flex: 1; }
 textarea, input[type="text"] {
   width: 100%;
   background: var(--card);
@@ -85,6 +102,10 @@ button.primary {
   color: var(--accent-fg);
   border-color: var(--accent);
   font-weight: 600;
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 .result-actions { display: flex; gap: 6px; margin-top: 6px; }
 .error { color: var(--error); font-size: 12px; margin: 0; }

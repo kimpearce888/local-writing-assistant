@@ -269,7 +269,8 @@ This is implemented in `scripts/generate-keypair.sh` (Python one-liner) and veri
 
 1. Add the value to the `ToneMode` union in `extension/src/shared/types.ts`
 2. Add a description string in `extension/src/shared/prompts.ts` → `buildTonePrompt`
-3. Add the option to `extension/src/options/options.html` and `extension/src/options/index.ts`
+3. Add the option to `extension/options.html` (the Vite build entry — not a copy under `src/`) and `extension/src/options/index.ts`
+4. To expose it in the side panel, add an entry with `kind: "tone"` to the **Adjust tone** category in the `CATEGORIES` table in `extension/src/sidepanel/index.ts`. The same table drives the Rewrite / Write / Evaluate menus — new rewrite operations go there too (and analysis-only ops must also be listed in `ANALYSIS_OPERATIONS` in `types.ts`).
 
 ---
 

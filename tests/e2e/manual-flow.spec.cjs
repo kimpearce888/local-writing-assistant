@@ -171,8 +171,10 @@ test.describe("Manual user-flow tests", () => {
         })
         .toContain("She don't like the way");
 
-      // Run a mock rewrite.
-      await sidePanel.locator('[data-op="improve"]').click();
+      // Run a mock rewrite. The action menu is rendered from the
+      // CATEGORIES table in sidepanel.js, so target the "Improve it"
+      // button by its label inside #actionMenu.
+      await sidePanel.locator('#actionMenu .action-item:has-text("Improve it")').click();
       // Wait for the result text to populate (mock returns instantly
       // but chrome.runtime.sendMessage round-trip takes a moment).
       await expect
