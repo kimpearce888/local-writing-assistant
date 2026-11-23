@@ -133,6 +133,18 @@ async function refreshModels(selectedId?: string): Promise<void> {
     if (selectedId && m === selectedId) opt.selected = true;
     select.appendChild(opt);
   }
+  // If the saved model is empty or no longer available, the browser would
+  // still DISPLAY the first option while storage kept holding "" — and
+  // every rewrite then failed with "no model selected". No `change` event
+  // fires for a display-only selection, so nothing ever persisted it.
+  // Auto-select the first available model AND save it immediately so the
+  // UI and storage always agree.
+  const saved = (await getSettings()).model;
+  if (!saved || !res.models.includes(saved)) {
+    const fallback = res.models[0];
+    select.value = fallback;
+    await saveSettings({ model: fallback });
+  }
 }
 
 async function refreshDictionary(): Promise<void> {

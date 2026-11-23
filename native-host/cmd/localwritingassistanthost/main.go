@@ -229,10 +229,6 @@ func handleGrammarCheck(req *protocol.Request, rid string, cfg HostConfig, out i
 		writeErr(out, rid, "REQUEST_TOO_LARGE", err.Error())
 		return
 	}
-	if payload.Model == "" {
-		writeErr(out, rid, "LM_STUDIO_NO_MODEL", "no model selected")
-		return
-	}
 	client, err := lmstudio.New(cfg.BaseURL, cfg.Token)
 	if err != nil {
 		writeErr(out, rid, "INSTALLATION_ERROR", err.Error())
@@ -244,8 +240,13 @@ func handleGrammarCheck(req *protocol.Request, rid string, cfg HostConfig, out i
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
+	model, err := resolveModel(ctx, client, payload.Model)
+	if err != nil {
+		writeErr(out, rid, "LM_STUDIO_NO_MODEL", err.Error())
+		return
+	}
 	out2, err := client.ChatCompletion(ctx, &lmstudio.ChatRequest{
-		Model: payload.Model,
+		Model: model,
 		Messages: []lmstudio.ChatMessage{
 			{Role: "system", Content: sys},
 			{Role: "user", Content: text},
@@ -258,6 +259,35 @@ func handleGrammarCheck(req *protocol.Request, rid string, cfg HostConfig, out i
 		return
 	}
 	writeOK(out, rid, map[string]any{"raw": out2})
+}
+
+// resolveModel returns the model to use for a request. If the extension
+// sent an explicit model we trust it; otherwise (empty string — e.g. the
+// user never explicitly picked one in the options page) we fall back to
+// the first chat-capable model on the LM Studio server instead of failing
+// with "no model selected". Embedding-only models are skipped because
+// they cannot serve /v1/chat/completions.
+func resolveModel(ctx context.Context, c *lmstudio.Client, requested string) (string, error) {
+	if requested != "" {
+		return requested, nil
+	}
+	models, err := c.ListModels(ctx)
+	if err != nil {
+		return "", fmt.Errorf("no model selected: cannot list models (%v)", err)
+	}
+	for _, m := range models {
+		id := strings.ToLower(m.ID)
+		if strings.Contains(id, "embed") ||
+			strings.HasPrefix(id, "bge/") ||
+			strings.Contains(id, "/e5-") {
+			continue
+		}
+		return m.ID, nil
+	}
+	if len(models) > 0 {
+		return models[0].ID, nil
+	}
+	return "", fmt.Errorf("no model selected: LM Studio has no models available")
 }
 
 func handleRewrite(req *protocol.Request, rid string, cfg HostConfig, out io.Writer) {
@@ -287,10 +317,6 @@ func handleRewrite(req *protocol.Request, rid string, cfg HostConfig, out io.Wri
 		writeErr(out, rid, "REQUEST_TOO_LARGE", err.Error())
 		return
 	}
-	if payload.Model == "" {
-		writeErr(out, rid, "LM_STUDIO_NO_MODEL", "no model selected")
-		return
-	}
 	client, err := lmstudio.New(cfg.BaseURL, cfg.Token)
 	if err != nil {
 		writeErr(out, rid, "INSTALLATION_ERROR", err.Error())
@@ -302,8 +328,13 @@ func handleRewrite(req *protocol.Request, rid string, cfg HostConfig, out io.Wri
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
+	model, err := resolveModel(ctx, client, payload.Model)
+	if err != nil {
+		writeErr(out, rid, "LM_STUDIO_NO_MODEL", err.Error())
+		return
+	}
 	out2, err := client.ChatCompletion(ctx, &lmstudio.ChatRequest{
-		Model: payload.Model,
+		Model: model,
 		Messages: []lmstudio.ChatMessage{
 			{Role: "system", Content: sys},
 			{Role: "user", Content: text},

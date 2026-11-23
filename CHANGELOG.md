@@ -10,6 +10,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 - **`npm run test:unit`** — dedicated script for the vitest unit suite, so the full `npm test` (unit + native + integration) and unit-only runs are both one command. `DEVELOPMENT.md` updated to match.
 
+### Fixed
+
+- **"No model selected" despite a model being chosen.** The options page could DISPLAY a model while storage still held an empty string — a display-only `<select>` selection fires no `change` event, so the choice was never persisted and every rewrite failed with `LM_STUDIO_NO_MODEL`. The options page now auto-selects the first available model when the saved value is empty or stale **and saves it immediately**, so the UI and storage always agree.
+- **Native host: empty model now falls back instead of failing.** When the extension sends no model, the host asks LM Studio for its model list and uses the first chat-capable one (embedding-only models are skipped — they cannot serve `/v1/chat/completions`). It still fails cleanly with `LM_STUDIO_NO_MODEL` when the server is unreachable or has no models. Covered by two new deterministic integration tests (offline-server rejection + fallback-to-first-chat-model against a mock OpenAI endpoint).
+
 ## [1.5.2] — 2026-11-23
 
 Release-pipeline fix. The v1.5.1 tag build failed in GitHub Actions: the "Verify ZIPs exist" step could not find `Local-Writing-Assistant-Windows.zip` even though it had just been written.

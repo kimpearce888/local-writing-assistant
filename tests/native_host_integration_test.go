@@ -5,6 +5,8 @@ import (
 	binenc "encoding/binary"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -108,12 +110,29 @@ func TestNativeHost_GrammarCheck_RejectsEmpty(t *testing.T) {
 	}
 }
 
-func TestNativeHost_GrammarCheck_RejectsNoModel(t *testing.T) {
+// writeHostConfig writes <binary>.config.json next to the built host so
+// loadConfig() picks up our BaseURL. HOME is also pointed at an empty dir
+// by the caller (via callWithEnv) so a real user-level
+// ~/.local-writing-assistant/host-config.json can never interfere.
+func writeHostConfig(t *testing.T, binary, baseURL string) {
+	t.Helper()
+	cfg := `{"baseUrl": "` + baseURL + `"}`
+	if err := os.WriteFile(binary+".config.json", []byte(cfg), 0o600); err != nil {
+		t.Fatalf("write host config: %v", err)
+	}
+}
+
+// TestNativeHost_GrammarCheck_EmptyModel_ServerOffline verifies that an
+// empty model with an UNREACHABLE LM Studio still fails cleanly with
+// LM_STUDIO_NO_MODEL (the fallback cannot list models on a dead server).
+func TestNativeHost_GrammarCheck_EmptyModel_ServerOffline(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
 	binary := buildHost(t)
-	resp := call(t, binary, &Request{
+	// Port 9 ("discard") — nothing listens there, deterministically.
+	writeHostConfig(t, binary, "http://127.0.0.1:9")
+	resp := callWithEnv(t, binary, &Request{
 		Command:   "grammar_check",
 		RequestID: "r6",
 		Payload: mustJSON(map[string]any{
@@ -121,12 +140,61 @@ func TestNativeHost_GrammarCheck_RejectsNoModel(t *testing.T) {
 			"systemPrompt": "be brief",
 			"model":        "",
 		}),
-	})
+	}, map[string]string{"HOME": t.TempDir()})
 	if resp.OK {
-		t.Fatalf("expected error when model is empty")
+		t.Fatalf("expected error when model is empty and server offline")
 	}
 	if resp.ErrorCode != "LM_STUDIO_NO_MODEL" {
-		t.Fatalf("expected LM_STUDIO_NO_MODEL, got %q", resp.ErrorCode)
+		t.Fatalf("expected LM_STUDIO_NO_MODEL, got %q (%s)", resp.ErrorCode, resp.Error)
+	}
+	if !strings.Contains(resp.Error, "cannot list models") {
+		t.Fatalf("expected 'cannot list models' in error, got %q", resp.Error)
+	}
+}
+
+// TestNativeHost_GrammarCheck_EmptyModel_FallsBackToFirstChatModel verifies
+// the new fallback: when the extension sends no model, the host picks the
+// first CHAT-CAPABLE model from /v1/models — skipping embedding models,
+// which cannot serve /v1/chat/completions.
+func TestNativeHost_GrammarCheck_EmptyModel_FallsBackToFirstChatModel(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	var gotModel string
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v1/models", func(w http.ResponseWriter, r *http.Request) {
+		// Embedding model FIRST on purpose: the host must skip it.
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"data":[{"id":"text-embedding-nomic-embed-text-v1.5","object":"model"},{"id":"google/gemma-4-e2b","object":"model"}],"object":"list"}`)
+	})
+	mux.HandleFunc("/v1/chat/completions", func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Model string `json:"model"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		gotModel = body.Model
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"choices":[{"message":{"role":"assistant","content":"{\"issues\":[],\"correctedText\":\"Hello world.\"}"}}]}`)
+	})
+	server := httptest.NewServer(mux) // listens on 127.0.0.1
+	defer server.Close()
+
+	binary := buildHost(t)
+	writeHostConfig(t, binary, server.URL)
+	resp := callWithEnv(t, binary, &Request{
+		Command:   "grammar_check",
+		RequestID: "r7",
+		Payload: mustJSON(map[string]any{
+			"text":         "Hello world.",
+			"systemPrompt": "be brief",
+			"model":        "",
+		}),
+	}, map[string]string{"HOME": t.TempDir()})
+	if !resp.OK {
+		t.Fatalf("expected fallback success, got %+v", resp)
+	}
+	if gotModel != "google/gemma-4-e2b" {
+		t.Fatalf("expected host to fall back to chat model google/gemma-4-e2b (skipping the embedding model), got %q", gotModel)
 	}
 }
 
