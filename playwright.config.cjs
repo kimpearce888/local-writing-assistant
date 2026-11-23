@@ -10,19 +10,22 @@
  * built fresh for each test run and registered into the persistent
  * context's user-data-dir via a generated native messaging manifest.
  *
- * Why not the regular `chromium.launch()`: Playwright's bundled
- * Chromium is patched to disallow extension loading by default. We
- * instead point Playwright at the system Chrome (or a separately
- * downloaded chromium) via CHROME_PATH env var.
+ * Browser choice: we use `launchPersistentContext` with --load-extension
+ * because extensions cannot be injected into a plain `chromium.launch()`
+ * context. Playwright's bundled Chromium *can* load unpacked extensions
+ * (headless=new); the fixture prefers the system Chrome via CHROME_PATH
+ * when set, and falls back to the bundled browser otherwise.
  */
 
-import { defineConfig, devices } from "@playwright/test";
+// CJS require (not ESM import) so the config also loads under plain Node,
+// not just Playwright's esbuild-bundled loader.
+const { defineConfig, devices } = require("@playwright/test");
 
 const CHROME_PATH = process.env.CHROME_PATH || "";
 const EXTENSION_PATH = process.env.EXTENSION_PATH || "extension/dist";
 const NATIVE_HOST_PATH = process.env.NATIVE_HOST_PATH || "native-host/build/LocalWritingAssistantHost";
 
-export default defineConfig({
+module.exports = defineConfig({
   testDir: "./tests/e2e",
   timeout: 60_000,
   expect: {

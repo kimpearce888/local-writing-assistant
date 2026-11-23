@@ -58,10 +58,10 @@ function ensureNativeHostBuilt() {
   const bin = path.join(ROOT, "native-host", "build", "LocalWritingAssistantHost");
   if (fs.existsSync(bin)) return bin;
   fs.mkdirSync(path.dirname(bin), { recursive: true });
-  execSync("go build -o build/LocalWritingAssistantHost ./cmd/localwritingassistanthost", {
-    cwd: path.join(ROOT, "native-host"),
-    stdio: "inherit",
-  });
+  execSync(
+    "CGO_ENABLED=0 go build -ldflags='-s -w' -o build/LocalWritingAssistantHost ./cmd/localwritingassistanthost",
+    { cwd: path.join(ROOT, "native-host"), stdio: "inherit" },
+  );
   return bin;
 }
 
@@ -88,18 +88,28 @@ async function launchExtensionContext() {
   const port = await ensureHttpServer();
   const extPath = path.join(ROOT, "extension", "dist");
   if (!fs.existsSync(path.join(extPath, "manifest.json"))) {
-    throw new Error(
-      `Extension is not built. Run \`cd extension && npm run build\` first.`,
-    );
+    // Self-contained E2E: build the extension on demand instead of failing.
+    console.log("[fixture] extension/dist missing — building...");
+    execSync("npm run build", { cwd: path.join(ROOT, "extension"), stdio: "inherit" });
+    if (!fs.existsSync(path.join(extPath, "manifest.json"))) {
+      throw new Error(`Extension build failed: no manifest in ${extPath}`);
+    }
   }
   const hostBin = ensureNativeHostBuilt();
   const userDataDir = makeUserDataDir();
   writeNativeMessagingManifest(userDataDir, hostBin);
 
+  // Playwright's own registry path (no version-pinned cache dirs — those
+  // break every time the bundled Chromium is updated).
+  let playwrightChromium = "";
+  try {
+    playwrightChromium = chromium.executablePath();
+  } catch {
+    /* browser not installed; fall through to system browsers */
+  }
   const candidates = [
     process.env.CHROME_PATH,
-    path.join(process.env.HOME || "", ".cache/ms-playwright/chromium-1243/chrome-linux64/chrome"),
-    path.join(process.env.HOME || "", ".cache/ms-playwright/chromium-1200/chrome-linux64/chrome"),
+    playwrightChromium,
     "/usr/bin/google-chrome",
     "/usr/bin/chromium",
     "/usr/bin/chromium-browser",
@@ -119,6 +129,18 @@ async function launchExtensionContext() {
     );
   }
 
+  // Chrome keeps its ProcessSingleton socket under $TMPDIR. Unix sockets
+  // are capped at 108 chars; on machines with a deep TMPDIR (e.g. nested
+  // sandbox dirs) the browser FATALs with "Socket path too long" before
+  // it even starts. Point the browser at a short temp dir when needed.
+  const env = { ...process.env, LOCAL_MOCK_AI: "true" };
+  const tmpdir = env.TMPDIR || env.TEMP || os.tmpdir();
+  if (path.join(tmpdir, "org.chromium.Chromium.ABCDEFG", "SingletonSocket").length > 107) {
+    const shortTmp = path.join("/tmp", "lwa-e2e-tmp-" + process.pid);
+    fs.mkdirSync(shortTmp, { recursive: true });
+    env.TMPDIR = shortTmp;
+  }
+
   const context = await chromium.launchPersistentContext(userDataDir, {
     headless: false,
     executablePath: chromePath,
@@ -129,10 +151,7 @@ async function launchExtensionContext() {
       "--no-default-browser-check",
       "--disable-features=Translate",
     ],
-    env: {
-      ...process.env,
-      LOCAL_MOCK_AI: "true",
-    },
+    env,
   });
 
   // Wait for the service worker to register.

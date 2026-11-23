@@ -35,7 +35,8 @@ const SKIP_DIRS = new Set([
   "build",
   ".git",
   "tests",
-]);
+  "playwright-report",
+  "test-results",]);
 const SKIP_FILES = new Set([
   "network-audit.js", // self
   "security-audit.js",

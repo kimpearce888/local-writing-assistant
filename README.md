@@ -3,7 +3,7 @@
 [![CI](https://github.com/kimpearce888/local-writing-assistant/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/kimpearce888/local-writing-assistant/actions/workflows/ci.yml)
 [![E2E](https://img.shields.io/badge/E2E-10%2F10%20passing-brightgreen.svg)](#testing)
 [![Release](https://github.com/kimpearce888/local-writing-assistant/actions/workflows/release.yml/badge.svg)](https://github.com/kimpearce888/local-writing-assistant/releases)
-[![Version](https://img.shields.io/badge/version-1.5.0-blue.svg)](https://github.com/kimpearce888/local-writing-assistant/releases/tag/v1.5.0)
+[![Version](https://img.shields.io/badge/version-1.5.1-blue.svg)](https://github.com/kimpearce888/local-writing-assistant/releases/tag/v1.5.1)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![No cloud](https://img.shields.io/badge/runtime-no%20cloud%20AI-1f6feb.svg)](PRIVACY.md)
 

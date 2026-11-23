@@ -98,6 +98,18 @@ function registerEditor(el: HTMLElement): void {
     unsubscribeClick: null,
   };
   editors.set(el, entry);
+
+  // If the element is ALREADY focused when we register it (page loaded
+  // with focus on the editor, or a script/test focused it before this
+  // content script ran), no future focus event will ever fire — so
+  // treat registration as the focus event: mark it current and kick
+  // off analysis. Without this, an editor that was focused before the
+  // extension attached would never be analyzed until the user clicked
+  // into it a second time.
+  if (el === document.activeElement) {
+    currentEditor = adapter;
+    scheduleAnalysis(adapter);
+  }
 }
 
 /** Helper: add an event listener and return an unsubscribe function. */

@@ -8,6 +8,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 _No unreleased changes yet._
 
+## [1.5.1] — 2026-11-23
+
+Bug fix release. Fixes a real product bug found during end-to-end verification, plus test-infrastructure hardening that made the E2E suite deterministic.
+
+### Fixed
+
+- **Content script: focus-before-registration race.** Editors focused before the content script's `focusin` capture listener registered were never analyzed (first-analysis flake). The content script now explicitly registers + analyzes any already-focused editor at startup. This was the root cause of intermittent "no highlights appear" failures in real use and in CI.
+- **E2E fixture: Chrome "socket path too long" FATAL.** On hosts with deep working directories, Chrome's DevTools socket path exceeded the Unix limit and the browser died mid-test (masked as random marker timeouts). The fixture now stages its profile under a short `TMPDIR` path.
+
+### Changed (test infrastructure)
+
+- `playwright.config.cjs` is now CommonJS so it loads under plain Node as well as Playwright's ESM loader.
+- Removed dead `test:extension` / `vitest` npm scripts — no unit test files exist in the repo, so they were offered-but-never-built entries that failed when run.
+
 ## [1.5.0] — 2026-09-30
 
 Linux support. The project now runs on Linux as well as Windows — same Go native host source, same Chrome extension, same mock-AI test suite. Both ZIPs are attached to every release.
