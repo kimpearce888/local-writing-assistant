@@ -20,7 +20,13 @@ import {
   RewriteOperation,
   ToneMode,
 } from "../shared/types";
-import { getSettings, saveSettings } from "../shared/storage";
+import {
+  addSiteExclusion,
+  getSettings,
+  removeSiteExclusion,
+  saveSettings,
+  setTabPaused,
+} from "../shared/storage";
 import { sendNative } from "../shared/native-bridge";
 import { runRewrite, runToneTransform } from "../shared/rewrite";
 
@@ -324,17 +330,20 @@ async function handleGetModels(): Promise<{ ok: boolean; models?: string[]; erro
 
 async function handlePauseSite(tabId: number, paused: boolean): Promise<void> {
   if (tabId < 0) return;
-  const mod = await import("../shared/storage");
-  mod.setTabPaused(tabId, paused);
+  // NOTE: static import on purpose — dynamic import() in an MV3 service
+  // worker pulls in Vite's preload helper, which references `window` and
+  // crashes the worker ("window is not defined").
+  await setTabPaused(tabId, paused);
 }
 
 async function handleSiteExclusion(
   action: "add" | "remove",
   host: string,
 ): Promise<void> {
-  const mod = await import("../shared/storage");
-  if (action === "add") await mod.addSiteExclusion(host);
-  else await mod.removeSiteExclusion(host);
+  // Static import — see handlePauseSite for why dynamic import() is unsafe
+  // in the service worker context.
+  if (action === "add") await addSiteExclusion(host);
+  else await removeSiteExclusion(host);
 }
 
 async function handleSidePanelRewrite(
