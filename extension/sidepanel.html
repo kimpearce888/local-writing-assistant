@@ -10,8 +10,6 @@
     <h1>Rewrite</h1>
   </header>
   <main>
-    <!-- Populated by sidepanel.js from the CATEGORIES table. -->
-    <nav id="actionMenu" class="action-menu" aria-label="Writing actions"></nav>
     <section>
       <h2>Selected text</h2>
       <textarea id="selectedText" rows="6" readonly></textarea>
@@ -21,7 +19,7 @@
       <input type="text" id="customInstruction" placeholder="e.g. Rewrite this to sound polite but direct." />
       <button id="runCustom">Run</button>
     </section>
-    <section>
+    <section id="resultSection">
       <h2>Result</h2>
       <textarea id="resultText" rows="8"></textarea>
       <div class="result-actions">
@@ -30,6 +28,10 @@
       </div>
     </section>
     <p id="errorLine" class="error" hidden></p>
+    <!-- Populated by sidepanel.js from the CATEGORIES table. The
+         working area above stays visible; actions live below it, one
+         collapsible group at a time. -->
+    <nav id="actionMenu" class="action-menu" aria-label="Writing actions"></nav>
   </main>
   <script type="module" src="src/sidepanel/index.ts"></script>
 </body>

@@ -140,10 +140,12 @@ function setText(el: HTMLElement, value: string): void {
 async function runOp(op: RewriteOperation, customInstruction?: string): Promise<void> {
   if (!state.text.trim()) {
     setErr("Select some text in the page first.");
+    scrollToResult();
     return;
   }
   setErr(null);
   setText($("resultText") as HTMLElement, "");
+  scrollToResult();
   const isAnalysis = ANALYSIS_OPERATIONS.has(op);
   setReplaceEnabled(false, isAnalysis ? undefined : "Run the action first");
   const res = (await chrome.runtime.sendMessage({
@@ -170,10 +172,12 @@ async function runOp(op: RewriteOperation, customInstruction?: string): Promise<
 async function runTone(tone: ToneMode): Promise<void> {
   if (!state.text.trim()) {
     setErr("Select some text in the page first.");
+    scrollToResult();
     return;
   }
   setErr(null);
   setText($("resultText") as HTMLElement, "");
+  scrollToResult();
   setReplaceEnabled(false, "Run the action first");
   const res = (await chrome.runtime.sendMessage({
     type: "side-panel-run-tone",
@@ -189,17 +193,32 @@ async function runTone(tone: ToneMode): Promise<void> {
   setReplaceEnabled(true);
 }
 
+/**
+ * Render the action menu as collapsible groups. The first group
+ * (Rewrite — the most-used actions) starts expanded; the rest start
+ * collapsed so the block below the working area stays compact.
+ */
 function renderActionMenu(): void {
   const menu = $("actionMenu");
   if (!menu) return;
   menu.textContent = "";
-  for (const cat of CATEGORIES) {
+  CATEGORIES.forEach((cat, i) => {
+    const expanded = i === 0;
     const section = document.createElement("section");
     section.className = "action-cat";
-    const h = document.createElement("h2");
+    const h = document.createElement("button");
+    h.type = "button";
     h.className = "cat-title";
-    h.textContent = cat.title;
-    section.appendChild(h);
+    h.setAttribute("aria-expanded", String(expanded));
+    const arrow = document.createElement("span");
+    arrow.className = "cat-arrow";
+    arrow.textContent = expanded ? "\u25be" : "\u25b8"; // ▾ / ▸
+    arrow.setAttribute("aria-hidden", "true");
+    const title = document.createElement("span");
+    title.textContent = cat.title;
+    h.append(arrow, title);
+    const list = document.createElement("div");
+    list.className = expanded ? "cat-actions" : "cat-actions collapsed";
     for (const action of cat.actions) {
       const btn = document.createElement("button");
       btn.type = "button";
@@ -219,10 +238,25 @@ function renderActionMenu(): void {
           void runOp(action.id as RewriteOperation);
         }
       });
-      section.appendChild(btn);
+      list.appendChild(btn);
     }
+    h.addEventListener("click", () => {
+      const collapsed = list.classList.toggle("collapsed");
+      h.setAttribute("aria-expanded", String(!collapsed));
+      arrow.textContent = collapsed ? "\u25b8" : "\u25be";
+    });
+    section.append(h, list);
     menu.appendChild(section);
-  }
+  });
+}
+
+/**
+ * The action menu now sits BELOW the working area, so after an action
+ * is triggered (or fails) bring the Result section back into view.
+ */
+function scrollToResult(): void {
+  const sec = $("resultSection");
+  if (sec) sec.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
 function setReplaceEnabled(enabled: boolean, note?: string): void {
