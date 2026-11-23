@@ -249,7 +249,27 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
       return false;
 
     case "status":
-      // From content script — ignore (popup polls separately).
+      // From content script. Reflect analysis health on the toolbar
+      // icon so a silent failure (LM Studio offline, model error, no
+      // model loaded) is visible without opening the popup: a red "!"
+      // badge with the error in the hover title, cleared as soon as an
+      // analysis succeeds again.
+      if (msg.state === "error") {
+        chrome.action.setBadgeText({ text: "!" }).catch(() => undefined);
+        chrome.action.setBadgeBackgroundColor({ color: "#c62828" }).catch(
+          () => undefined,
+        );
+        chrome.action
+          .setTitle({
+            title: `Local Writing Assistant — error: ${msg.code ?? "UNKNOWN"} (${msg.message ?? "no details"})`,
+          })
+          .catch(() => undefined);
+      } else if (msg.state === "done") {
+        chrome.action.setBadgeText({ text: "" }).catch(() => undefined);
+        chrome.action
+          .setTitle({ title: "Local Writing Assistant" })
+          .catch(() => undefined);
+      }
       return false;
 
     default:
