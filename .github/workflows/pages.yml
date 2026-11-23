@@ -10,7 +10,13 @@ name: Publish GitHub Pages
 # to reference this URL — Chrome then silently installs/updates the
 # extension on every machine in the org.
 #
-# This workflow runs on every push to main and on every release.
+# This workflow runs on every push to main (and on manual dispatch).
+#
+# It deliberately does NOT run on tag pushes: the github-pages
+# environment has custom deployment-branch policies (main / gh-pages)
+# that reject tag refs, and GitHub's deployment rules cannot express
+# tag patterns. Tags are always cut from main, so the push-to-main
+# deploy already published the identical content.
 #
 # Why we no longer call scripts/embed-public-key.sh here:
 #   The committed extension/public/manifest.json already has the
@@ -27,7 +33,6 @@ name: Publish GitHub Pages
 on:
   push:
     branches: [main]
-    tags: ["v*.*.*"]
   workflow_dispatch:
 
 permissions:
