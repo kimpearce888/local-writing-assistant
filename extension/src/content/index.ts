@@ -326,40 +326,89 @@ function handleAddToDict(issue: TaggedIssue): void {
   handleIgnore(issue);
 }
 
-/** When the user opens the side panel for a rewrite, we send the
- *  selected text + the editor offsets + a hash of the FULL editor text
- *  so the apply step can verify the editor hasn't changed. Previously
- *  we sent only {text, editorId} and the side panel's Replace button
- *  always failed with "No editor is bound to this rewrite." */
-function handleSelectionForRewrite(): void {
-  const sel = window.getSelection();
-  if (!sel || sel.isCollapsed) return;
-  const anchor = sel.anchorNode as Node | null;
-  if (!anchor) return;
-  const el = anchor.nodeType === Node.ELEMENT_NODE
-    ? (anchor as HTMLElement)
-    : anchor.parentElement;
-  if (!el) return;
-  const editorEl = findEditorAt(el);
-  if (!editorEl) return;
-  const adapter = getAdapterForElement(editorEl);
-  if (!adapter) return;
+/** Send a selection to the side panel together with the editor offsets
+ *  + a hash of the FULL editor text so the apply step can verify the
+ *  editor hasn't changed. (Previously we sent only {text, editorId} and
+ *  the side panel's Replace button always failed with "No editor is
+ *  bound to this rewrite.") */
+function pushRewriteSelection(
+  adapter: EditorAdapter,
+  text: string,
+  start: number,
+  end: number,
+): void {
   currentEditor = adapter;
-  const selOffsets = adapter.getSelection();
   void getSettings().then((s) => {
     const fullText = adapter.getText();
-    const expectedHash = hashText(
-      fullText + "|" + s.tone + "|" + s.model,
-    );
+    const expectedHash = hashText(fullText + "|" + s.tone + "|" + s.model);
     chrome.runtime.sendMessage({
       type: "selection-for-rewrite",
-      text: sel.toString(),
+      text,
       editorId: adapter.getEditorIdentity(),
-      start: selOffsets.start,
-      end: selOffsets.end,
+      start,
+      end,
       expectedHash,
     }).catch(() => undefined);
   });
+}
+
+/** Compute the current rewrite selection, or null when there is nothing
+ *  to send.
+ *
+ * `fallbackToFullEditor` (explicit queries only — side panel open /
+ *  keyboard shortcut) makes a focused text field that has content but no
+ *  explicit selection send its FULL contents, so the "Selected text" box
+ *  shows what the user is working on instead of staying empty. */
+function getRewriteSelection(fallbackToFullEditor: boolean): {
+  adapter: EditorAdapter;
+  text: string;
+  start: number;
+  end: number;
+} | null {
+  // Case 1: selection inside a form control (textarea / input). Chrome
+  // does NOT reflect <input>/<textarea> selections in
+  // window.getSelection(), so read them from the element's own
+  // selectionStart/selectionEnd via the adapter instead.
+  const active = document.activeElement;
+  if (
+    active instanceof HTMLInputElement ||
+    active instanceof HTMLTextAreaElement
+  ) {
+    const adapter = getAdapterForElement(findEditorAt(active));
+    if (adapter) {
+      const off = adapter.getSelection();
+      const value = adapter.getText();
+      if (off.end > off.start && value.length > 0) {
+        return {
+          adapter,
+          text: value.slice(off.start, off.end),
+          start: off.start,
+          end: off.end,
+        };
+      }
+      if (fallbackToFullEditor && value.trim().length > 0) {
+        return { adapter, text: value, start: 0, end: value.length };
+      }
+    }
+  }
+
+  // Case 2: normal DOM selection (body text / contenteditable).
+  const sel = window.getSelection();
+  if (!sel || sel.isCollapsed) return null;
+  const anchor = sel.anchorNode as Node | null;
+  if (!anchor) return null;
+  const el = anchor.nodeType === Node.ELEMENT_NODE
+    ? (anchor as HTMLElement)
+    : anchor.parentElement;
+  const adapter = getAdapterForElement(findEditorAt(el));
+  if (!adapter) return null;
+  const off = adapter.getSelection();
+  return { adapter, text: sel.toString(), start: off.start, end: off.end };
+}
+
+function handleSelectionForRewrite(fallbackToFullEditor = false): void {
+  const s = getRewriteSelection(fallbackToFullEditor);
+  if (s) pushRewriteSelection(s.adapter, s.text, s.start, s.end);
 }
 
 /* ---------------- Engine setup ---------------- */
@@ -401,6 +450,21 @@ engine = new SuggestionEngine({
   if (!(await shouldRunOnSite())) return;
   await rescanPage();
 
+  // Keep the side panel's "Selected text" box in sync when the user
+  // selects text AFTER the panel is open (the panel only queries once,
+  // on open). Only real, non-collapsed selections are pushed — plain
+  // typing must not wipe a rewrite result that is on screen.
+  let selPushTimer: number | undefined;
+  const scheduleSelectionPush = (): void => {
+    window.clearTimeout(selPushTimer);
+    selPushTimer = window.setTimeout(
+      () => handleSelectionForRewrite(false),
+      150,
+    );
+  };
+  document.addEventListener("mouseup", scheduleSelectionPush, true);
+  document.addEventListener("keyup", scheduleSelectionPush, true);
+
   // Watch for dynamically added editors. Debounced so SPAs that fire
   // hundreds of mutations per second don't cripple the page.
   const observer = new MutationObserver(() => {
@@ -419,7 +483,10 @@ engine = new SuggestionEngine({
       return true;
     }
     if (msg?.type === "selection-for-rewrite-query") {
-      handleSelectionForRewrite();
+      // Explicit query (side panel just opened / shortcut pressed): fall
+      // back to the focused field's full text so a user who pasted a
+      // draft into a form and never selected it still sees their text.
+      handleSelectionForRewrite(true);
       reply({ ok: true });
       return true;
     }
