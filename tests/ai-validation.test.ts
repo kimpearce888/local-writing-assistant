@@ -145,8 +145,14 @@ describe("parseRewriteResponse", () => {
     expect(() => parseRewriteResponse(JSON.stringify({ foo: "bar" }))).toThrow();
   });
 
-  it("rejects non-object output", () => {
-    expect(() => parseRewriteResponse("just text")).toThrow();
+  it("falls back to plain text when a small model ignores the JSON format", () => {
+    const r = parseRewriteResponse("just text");
+    expect(r.rewritten).toBe("just text");
+    expect(r.explanation).toBe("model returned plain text (no JSON)");
+  });
+
+  it("rejects a JSON array (valid JSON but not an object)", () => {
+    expect(() => parseRewriteResponse("[1,2]")).toThrow();
   });
 });
 

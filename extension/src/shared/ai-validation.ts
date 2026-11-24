@@ -170,8 +170,19 @@ export function parseRewriteResponse(raw: string): RewriteResult {
     }
     throw { code: "INVALID_AI_RESPONSE", detail: "not an object" };
   }
-  const rewritten = asString(parsed.rewritten);
-  if (rewritten === null || rewritten.length === 0) {
+  // Small models sometimes rename the key even when they do return JSON
+  // (observed: "rewritten_statement"). Accept a small set of aliases so a
+  // valid rewrite is not discarded over a key-name deviation. Empty strings
+  // are skipped so {"rewritten":"", "text":"..."} still resolves.
+  let rewritten: string | null = null;
+  for (const key of ["rewritten", "rewritten_statement", "rewritten_text", "text", "output"]) {
+    const s = asString((parsed as Record<string, unknown>)[key]);
+    if (s !== null && s.trim().length > 0) {
+      rewritten = s;
+      break;
+    }
+  }
+  if (rewritten === null) {
     throw { code: "INVALID_AI_RESPONSE", detail: "rewritten missing" };
   }
   const explanation = asString(parsed.explanation) ?? "";

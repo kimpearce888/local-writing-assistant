@@ -57,3 +57,6 @@ logs/
 
 # OS
 .DS_Store
+
+# Built native host binary (built by scripts/build-native-host.sh)
+native-host/lwa-native-app
