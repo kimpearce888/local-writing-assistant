@@ -1,6 +1,6 @@
 {
   "name": "local-writing-assistant-extension",
-  "version": "1.7.0",
+  "version": "1.7.1",
   "private": true,
   "type": "module",
   "description": "Fully local AI writing assistant Chrome extension powered by LM Studio. No cloud, no telemetry.",

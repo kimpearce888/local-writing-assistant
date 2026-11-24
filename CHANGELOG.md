@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+## [1.7.1] — 2026-11-24
+
+### Changed
+
+- **Actionable error messages instead of raw diagnostics.** Every LM Studio failure is now classified into a specific code with a one-line message the user can act on:
+  - `LM_STUDIO_OFFLINE` — "cannot reach LM Studio — start it (default http://localhost:1234) and try again"
+  - `LM_STUDIO_TIMEOUT` — "took too long to respond — the model may still be loading; wait a moment and try again"
+  - `MODEL_NOT_LOADED` — names the exact model and tells you to select it in the LM Studio playground and let it finish loading
+  - `LM_STUDIO_NO_MODEL` — "no chat model is available in LM Studio — load one in the playground and try again"
+- **Server messages extracted from JSON error bodies.** When LM Studio returns a structured error (e.g. `chat completions returned 400: {"error":{"message":…}}`), the UI now shows the single server-provided sentence instead of the whole JSON blob.
+
 ## [1.7.0] — 2026-11-24
 
 ### Changed
