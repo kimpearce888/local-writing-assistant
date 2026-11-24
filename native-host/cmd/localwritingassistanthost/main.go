@@ -255,7 +255,8 @@ func handleGrammarCheck(req *protocol.Request, rid string, cfg HostConfig, out i
 		MaxTokens:   payload.MaxTokens,
 	})
 	if err != nil {
-		writeErr(out, rid, classifyLMError(err), err.Error())
+		code, errMsg := classifyLMError(err, model)
+		writeErr(out, rid, code, errMsg)
 		return
 	}
 	if err := rejectEmptyModelOutput(out, rid, out2); err != nil {
@@ -361,7 +362,8 @@ func handleRewrite(req *protocol.Request, rid string, cfg HostConfig, out io.Wri
 		MaxTokens:   payload.MaxTokens,
 	})
 	if err != nil {
-		writeErr(out, rid, classifyLMError(err), err.Error())
+		code, errMsg := classifyLMError(err, model)
+		writeErr(out, rid, code, errMsg)
 		return
 	}
 	if err := rejectEmptyModelOutput(out, rid, out2); err != nil {
@@ -370,17 +372,49 @@ func handleRewrite(req *protocol.Request, rid string, cfg HostConfig, out io.Wri
 	writeOK(out, rid, map[string]any{"raw": out2})
 }
 
-func classifyLMError(err error) string {
+// classifyLMError maps an LM Studio client error to a UI error code and a
+// short, actionable message. The raw error (often a JSON blob from the
+// server) is only shown when no specific case matches, so users see
+// something they can act on instead of a wall of diagnostics.
+func classifyLMError(err error, model string) (string, string) {
 	msg := err.Error()
+	lower := strings.ToLower(msg)
 	switch {
-	case contains(msg, "connection refused"), contains(msg, "no such host"):
-		return "LM_STUDIO_OFFLINE"
-	case contains(msg, "context deadline exceeded"), contains(msg, "timeout"):
-		return "LM_STUDIO_TIMEOUT"
-	case contains(msg, "model error"):
-		return "MODEL_ERROR"
+	case contains(lower, "connection refused"), contains(lower, "no such host"):
+		return "LM_STUDIO_OFFLINE",
+			"cannot reach LM Studio — start it (default http://localhost:1234) and try again"
+	case contains(lower, "context deadline exceeded"), contains(lower, "timeout"):
+		return "LM_STUDIO_TIMEOUT",
+			"LM Studio took too long to respond — the model may still be loading; wait a moment and try again"
+	case contains(lower, "failed to load model"), contains(lower, "model not found"):
+		return "MODEL_NOT_LOADED",
+			fmt.Sprintf("LM Studio could not use model %q — open LM Studio, select that model in the playground (and let it finish loading), then try again", model)
+	case contains(lower, "no model selected"), contains(lower, "no models available"):
+		return "LM_STUDIO_NO_MODEL",
+			"no chat model is available in LM Studio — load one in the playground and try again"
 	}
-	return "MODEL_ERROR"
+	return "MODEL_ERROR", httpErrorMessage(msg)
+}
+
+// httpErrorMessage digs the server-provided message out of an LM Studio
+// error body ("chat completions returned 400: {\"error\":{\"message\":...}}")
+// so the UI can show one sentence instead of a JSON blob. Falls back to the
+// raw text when the body is not parseable.
+func httpErrorMessage(msg string) string {
+	i := strings.Index(msg, "returned ")
+	if i < 0 {
+		return msg
+	}
+	body := msg[i+len("returned "):]
+	var parsed struct {
+		Error *struct {
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal([]byte(body), &parsed); err == nil && parsed.Error != nil && parsed.Error.Message != "" {
+		return parsed.Error.Message
+	}
+	return msg
 }
 
 func contains(s, sub string) bool {
