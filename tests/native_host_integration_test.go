@@ -198,6 +198,79 @@ func TestNativeHost_GrammarCheck_EmptyModel_FallsBackToFirstChatModel(t *testing
 	}
 }
 
+// TestNativeHost_GrammarCheck_EmptyContent_CleanError pins the
+// reasoning-model failure mode: LM Studio answers HTTP 200 but with an
+// empty message.content (the thinking tokens ate the whole max_tokens
+// budget). The host must surface MODEL_EMPTY_RESPONSE with an actionable
+// message instead of a blank success that the extension turns into an
+// opaque INVALID_AI_RESPONSE.
+func TestNativeHost_GrammarCheck_EmptyContent_CleanError(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v1/chat/completions", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"choices":[{"message":{"role":"assistant","content":""},"finish_reason":"length"}]}`)
+	})
+	server := httptest.NewServer(mux) // listens on 127.0.0.1
+	defer server.Close()
+
+	binary := buildHost(t)
+	writeHostConfig(t, binary, server.URL)
+	resp := callWithEnv(t, binary, &Request{
+		Command:   "grammar_check",
+		RequestID: "r8",
+		Payload: mustJSON(map[string]any{
+			"text":         "Hello world.",
+			"systemPrompt": "be brief",
+			"model":        "test/model",
+		}),
+	}, map[string]string{"HOME": t.TempDir()})
+	if resp.OK {
+		t.Fatalf("expected failure for empty model content, got ok: %+v", resp)
+	}
+	if resp.ErrorCode != "MODEL_EMPTY_RESPONSE" {
+		t.Fatalf("expected MODEL_EMPTY_RESPONSE, got %q (msg=%q)", resp.ErrorCode, resp.Error)
+	}
+	if !strings.Contains(resp.Error, "Max tokens") {
+		t.Fatalf("error message should point at the Max tokens setting, got %q", resp.Error)
+	}
+}
+
+// TestNativeHost_Rewrite_EmptyContent_CleanError is the same contract for
+// the rewrite path.
+func TestNativeHost_Rewrite_EmptyContent_CleanError(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v1/chat/completions", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"choices":[{"message":{"role":"assistant","content":"   "},"finish_reason":"length"}]}`)
+	})
+	server := httptest.NewServer(mux) // listens on 127.0.0.1
+	defer server.Close()
+
+	binary := buildHost(t)
+	writeHostConfig(t, binary, server.URL)
+	resp := callWithEnv(t, binary, &Request{
+		Command:   "rewrite",
+		RequestID: "r9",
+		Payload: mustJSON(map[string]any{
+			"text":         "Hello world.",
+			"systemPrompt": "be brief",
+			"model":        "test/model",
+		}),
+	}, map[string]string{"HOME": t.TempDir()})
+	if resp.OK {
+		t.Fatalf("expected failure for whitespace-only model content, got ok: %+v", resp)
+	}
+	if resp.ErrorCode != "MODEL_EMPTY_RESPONSE" {
+		t.Fatalf("expected MODEL_EMPTY_RESPONSE, got %q (msg=%q)", resp.ErrorCode, resp.Error)
+	}
+}
+
 /* ---------------- helpers ---------------- */
 
 func buildHost(t *testing.T) string {

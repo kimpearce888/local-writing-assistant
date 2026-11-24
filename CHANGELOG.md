@@ -6,14 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
-### Added
+## [1.7.0] — 2026-11-24
 
-- **`npm run test:unit`** — dedicated script for the vitest unit suite, so the full `npm test` (unit + native + integration) and unit-only runs are both one command. `DEVELOPMENT.md` updated to match.
+### Changed
+
+- **Side panel: working area on top, actions in collapsible groups.** The action menu previously sat above the working area as a 40-row wall, pushing Selected text / Result out of view. Now **Selected text, Custom instruction and Result always render first**, and the actions sit below in collapsible categories (Rewrite / Write / Evaluate / Adjust tone), with only Rewrite expanded by default so *Improve it* stays one click away. Group headers are accessible buttons (`aria-expanded`, arrow state). Locked in by a new layout-contract test suite.
 
 ### Fixed
 
-- **"No model selected" despite a model being chosen.** The options page could DISPLAY a model while storage still held an empty string — a display-only `<select>` selection fires no `change` event, so the choice was never persisted and every rewrite failed with `LM_STUDIO_NO_MODEL`. The options page now auto-selects the first available model when the saved value is empty or stale **and saves it immediately**, so the UI and storage always agree.
-- **Native host: empty model now falls back instead of failing.** When the extension sends no model, the host asks LM Studio for its model list and uses the first chat-capable one (embedding-only models are skipped — they cannot serve `/v1/chat/completions`). It still fails cleanly with `LM_STUDIO_NO_MODEL` when the server is unreachable or has no models. Covered by two new deterministic integration tests (offline-server rejection + fallback-to-first-chat-model against a mock OpenAI endpoint).
+- **Silent inline-analysis failures.** When LM Studio is offline, no model is loaded, or the model errors, `analyze()` failed with no visible feedback — no underlines and no explanation. A failed analysis now sets a red **!** badge on the extension icon with the error code and message in the hover title; a successful analysis clears it. No page UI is injected, so arbitrary sites are unaffected.
+- **Service worker crash: `window is not defined`.** The background service worker used dynamic storage imports that resolved to browser-global (`window`) access unavailable in a service-worker context. It now uses static imports, so the worker starts cleanly on install and update.
 
 ## [1.6.0] — 2026-11-24
 
@@ -26,6 +28,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
   - **Adjust tone** — Sound anticipatory, Make it assertive, Sound compassionate, Sound confident, Make it constructive, Sound cooperative, Make it diplomatic, Make it empathetic, Make it friendly, Make it inspirational, Make it exciting, Sound casual, Sound formal, Make it engaging, Make it persuasive, Make it direct.
 - **12 new tone modes** (anticipatory, assertive, compassionate, constructive, cooperative, diplomatic, empathetic, inspirational, exciting, engaging, persuasive, direct), also selectable on the Options page.
 - Prompt-injection-safe prompts for every new action; Evaluate prompts explicitly forbid rewriting the text. Exhaustive unit tests now cover all 25 rewrite operations and all 19 tone modes.
+
+### Also in this release (changelog entries added after the tag)
+
+- **`npm run test:unit`** — dedicated script for the vitest unit suite, so the full `npm test` (unit + native + integration) and unit-only runs are both one command. `DEVELOPMENT.md` updated to match.
+- **"No model selected" despite a model being chosen.** The options page could DISPLAY a model while storage still held an empty string — a display-only `<select>` selection fires no `change` event, so the choice was never persisted and every rewrite failed with `LM_STUDIO_NO_MODEL`. The options page now auto-selects the first available model when the saved value is empty or stale **and saves it immediately**, so the UI and storage always agree.
+- **Native host: empty model now falls back instead of failing.** When the extension sends no model, the host asks LM Studio for its model list and uses the first chat-capable one (embedding-only models are skipped — they cannot serve `/v1/chat/completions`). It still fails cleanly with `LM_STUDIO_NO_MODEL` when the server is unreachable or has no models. Covered by two new deterministic integration tests (offline-server rejection + fallback-to-first-chat-model against a mock OpenAI endpoint).
 
 ### Fixed
 

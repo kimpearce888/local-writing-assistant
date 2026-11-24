@@ -156,6 +156,18 @@ export function parseRewriteResponse(raw: string): RewriteResult {
   const block = extractJsonBlock(raw);
   const parsed = safeParse(block);
   if (!isObject(parsed)) {
+    // Small models (e.g. 2B-class) often ignore the JSON instruction and
+    // return the rewritten prose directly. When the response is not JSON
+    // at all (safeParse -> null), fall back to the plain text: the side
+    // panel always shows the result for review before any Replace, so this
+    // is safe and far more useful than a hard failure. A response that IS
+    // valid JSON but not an object (e.g. an array) is still rejected.
+    if (parsed === null) {
+      const plain = raw.trim();
+      if (plain.length > 0) {
+        return { rewritten: plain, explanation: "model returned plain text (no JSON)" };
+      }
+    }
     throw { code: "INVALID_AI_RESPONSE", detail: "not an object" };
   }
   const rewritten = asString(parsed.rewritten);

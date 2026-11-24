@@ -258,7 +258,25 @@ func handleGrammarCheck(req *protocol.Request, rid string, cfg HostConfig, out i
 		writeErr(out, rid, classifyLMError(err), err.Error())
 		return
 	}
+	if err := rejectEmptyModelOutput(out, rid, out2); err != nil {
+		return
+	}
 	writeOK(out, rid, map[string]any{"raw": out2})
+}
+
+// rejectEmptyModelOutput turns a blank model response into an explicit,
+// actionable error instead of letting the extension fail later with an
+// opaque "INVALID_AI_RESPONSE". This matters most for reasoning models:
+// when their internal thinking consumes the whole max_tokens budget the
+// API returns HTTP 200 with an empty message.content, which looks like
+// success to a plain client.
+func rejectEmptyModelOutput(out io.Writer, rid string, content string) error {
+	if strings.TrimSpace(content) == "" {
+		writeErr(out, rid, "MODEL_EMPTY_RESPONSE",
+			"model returned an empty response — reasoning models may spend the entire token budget on internal thinking; increase Max tokens in Options and try again")
+		return fmt.Errorf("empty model output")
+	}
+	return nil
 }
 
 // resolveModel returns the model to use for a request. If the extension
@@ -344,6 +362,9 @@ func handleRewrite(req *protocol.Request, rid string, cfg HostConfig, out io.Wri
 	})
 	if err != nil {
 		writeErr(out, rid, classifyLMError(err), err.Error())
+		return
+	}
+	if err := rejectEmptyModelOutput(out, rid, out2); err != nil {
 		return
 	}
 	writeOK(out, rid, map[string]any{"raw": out2})
