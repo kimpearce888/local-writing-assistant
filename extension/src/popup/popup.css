@@ -82,6 +82,12 @@ main {
 }
 .btn:hover { filter: brightness(0.97); }
 .btn.small { font-size: 11px; padding: 5px 8px; }
+.btn.primary {
+  background: var(--accent);
+  color: var(--accent-fg);
+  border-color: var(--accent);
+  font-weight: 600;
+}
 .diag-line {
   font-size: 11px;
   color: var(--muted);

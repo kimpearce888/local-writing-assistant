@@ -26,15 +26,14 @@ import {
 } from "../shared/storage";
 import { hashText } from "../shared/text-utils";
 import { t } from "../shared/i18n";
+import { createPerKeyDebouncer } from "../shared/debounce";
+import { ExtensionSettings } from "../shared/types";
 
 interface EditorEntry {
   adapter: EditorAdapter;
   layer: HighlightLayer;
   /** Unsubscribers for adapter.onInput + element focus/blur listeners. */
   detach: () => void;
-  /** Per-editor debounce timer so typing in editor A doesn't reset
-   *  editor B's pending analysis. */
-  debounceTimer: ReturnType<typeof setTimeout> | null;
   /** Unsubscribe for the layer's click handler so we don't stack a new
    *  listener on every re-analysis. */
   unsubscribeClick: (() => void) | null;
@@ -45,6 +44,13 @@ let popup: SuggestionPopup | null = null;
 let engine: SuggestionEngine;
 let currentEditor: EditorAdapter | null = null;
 const issuesByEditor = new Map<string, TaggedIssue[]>();
+
+/** Cache of the validated settings, refreshed at init and on every
+ *  chrome.storage.onChanged("settings") event. The debounce path needs
+ *  debounceMs SYNCHRONOUSLY — awaiting getSettings() inside the input
+ *  handler is exactly what allowed the stale-timer bug to kill inline
+ *  analysis (the async gap raced the "already scheduled?" check). */
+let settingsCache: ExtensionSettings | null = null;
 
 function isAllowedPage(): boolean {
   // chrome:// and chrome-extension:// pages are not user content.
@@ -94,13 +100,9 @@ function registerEditor(el: HTMLElement): void {
       blurUnsub();
       entry.unsubscribeClick?.();
       entry.unsubscribeClick = null;
-      if (entry.debounceTimer) {
-        clearTimeout(entry.debounceTimer);
-        entry.debounceTimer = null;
-      }
+      debouncer.cancel(adapter.getEditorIdentity());
       layer.dispose();
     },
-    debounceTimer: null,
     unsubscribeClick: null,
   };
   editors.set(el, entry);
@@ -128,40 +130,34 @@ function onBlur(el: HTMLElement, cb: () => void): () => void {
   return () => el.removeEventListener("blur", cb);
 }
 
-/** Per-editor debounced analysis. The previous global debounce timer
- *  meant that typing in editor A then switching to editor B would
- *  reset A's pending analysis and only ever analyze B.
+/* ---------------- Per-editor analysis debouncer ----------------
  *
- *  The debounce delay honors the user's `debounceMs` setting (100–5000,
- *  validated/clamped by storage.ts) instead of a hardcoded 700. */
+ * Per-editor (per-key) debounce so typing in editor A doesn't reset
+ * editor B's pending analysis, and every keystroke reliably re-schedules
+ * the pending run (shared/debounce.ts documents the stale-timer bug
+ * this replaces — it silently killed inline analysis after the first
+ * burst of keystrokes, which is why highlights "never showed while
+ * writing").
+ *
+ * The delay honors the user's `debounceMs` setting (100–5000,
+ * validated/clamped by storage.ts) via the synchronous settings cache;
+ * 700 is the fallback before the cache is populated. */
+const debouncer = createPerKeyDebouncer(() => settingsCache?.debounceMs ?? 700);
+
 function scheduleAnalysis(adapter: EditorAdapter): void {
-  let entry: EditorEntry | undefined;
+  let registered = false;
   for (const e of editors.values()) {
     if (e.adapter === adapter) {
-      entry = e;
+      registered = true;
       break;
     }
   }
-  if (!entry) return;
-  if (entry.debounceTimer) clearTimeout(entry.debounceTimer);
-  void getSettings()
-    .then((s) => {
-      if (entry.debounceTimer) return; // a newer call already scheduled
-      entry.debounceTimer = setTimeout(() => {
-        entry!.debounceTimer = null;
-        engine.analyze(adapter).catch(() => {
-          // errors are surfaced through cbs.onAnalyzeError
-        });
-      }, s.debounceMs);
-    })
-    .catch(() => {
-      // Storage failure: fall back to the default delay.
-      if (entry.debounceTimer) return;
-      entry.debounceTimer = setTimeout(() => {
-        entry!.debounceTimer = null;
-        engine.analyze(adapter).catch(() => undefined);
-      }, 700);
+  if (!registered) return;
+  debouncer.schedule(adapter.getEditorIdentity(), () => {
+    void engine.analyze(adapter).catch(() => {
+      // errors are surfaced through cbs.onAnalyzeError
     });
+  });
 }
 
 let rescanTimer: ReturnType<typeof setTimeout> | null = null;
@@ -477,6 +473,9 @@ engine = new SuggestionEngine({
 /* ---------------- Bootstrap ---------------- */
 
 (async function init() {
+  // Populate the synchronous settings cache BEFORE attaching editors —
+  // the first keystroke already needs debounceMs.
+  settingsCache = await getSettings().catch(() => null);
   if (!(await shouldRunOnSite())) return;
   await rescanPage();
 
@@ -585,6 +584,15 @@ engine = new SuggestionEngine({
   // only consulted chrome.storage.local at boot.
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== "local") return;
+    // Keep the synchronous settings cache (debounceMs, inlineSuggestions,
+    // …) in step with user edits made in the options page.
+    if (Object.prototype.hasOwnProperty.call(changes, "settings")) {
+      void getSettings()
+        .then((s) => {
+          settingsCache = s;
+        })
+        .catch(() => undefined);
+    }
     const pauseKey = "paused:" + location.host;
     if (!Object.prototype.hasOwnProperty.call(changes, pauseKey) &&
         !Object.prototype.hasOwnProperty.call(changes, "siteExclusions")) {
@@ -627,6 +635,7 @@ engine = new SuggestionEngine({
     observer.disconnect();
     for (const entry of editors.values()) entry.detach();
     editors.clear();
+    debouncer.dispose();
     popup?.hide();
   });
 })();

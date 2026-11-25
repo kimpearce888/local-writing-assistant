@@ -2,17 +2,18 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Rewrite — Local Writing Assistant</title>
+  <title>Writing Assistant — Local Writing Assistant</title>
   <link rel="stylesheet" href="src/sidepanel/sidepanel.css" />
 </head>
 <body data-theme="auto">
   <header>
-    <h1>Rewrite</h1>
+    <h1>Writing Assistant</h1>
   </header>
   <main>
     <section>
-      <h2>Selected text</h2>
-      <textarea id="selectedText" rows="6" readonly></textarea>
+      <h2>Your text</h2>
+      <textarea id="selectedText" rows="6"
+        placeholder="Write here, or select text on the page — it will appear here."></textarea>
     </section>
     <section>
       <h2>Custom instruction</h2>
@@ -21,7 +22,8 @@
     </section>
     <section id="resultSection">
       <h2>Result</h2>
-      <textarea id="resultText" rows="8"></textarea>
+      <textarea id="resultText" rows="8"
+        placeholder="The result appears here. Edit it freely before applying."></textarea>
       <div class="result-actions">
         <button id="replaceBtn" class="primary">Replace</button>
         <button id="copyBtn">Copy</button>

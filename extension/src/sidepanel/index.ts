@@ -1,10 +1,18 @@
 /**
- * Side panel entry. Receives selected text from the content script
- * (via the background) and lets the user trigger rewrite operations.
+ * Side panel entry.
  *
- * Replacements are NEVER applied automatically — the user must click
- * Replace, which forwards an `apply-rewrite` message back to the
- * content script with the expected text hash for stale-result detection.
+ * The "Your text" box is a real, EDITABLE working area: the user can
+ * write directly in the panel, or let a page selection prefill it.
+ * Every keystroke in either box is synced into `state`, so actions
+ * always operate on what is actually on screen (previously the box was
+ * readonly and state.text only ever came from selection pushes, which
+ * made the panel selection-only and un-editable).
+ *
+ * Replacements into a PAGE editor are NEVER applied automatically — the
+ * user must click Replace, which forwards an `apply-rewrite` message
+ * back to the content script with the expected text hash for
+ * stale-result detection. Text written purely in the panel has no page
+ * editor to bind to; Copy is the apply path there.
  */
 
 import {
@@ -107,6 +115,21 @@ interface RewriteState {
 
 const state: RewriteState = { text: "", rewritten: "" };
 
+/** Sync the working text from the (editable) box into state so every
+ *  action runs against exactly what the user sees and edits. */
+function syncWorkingText(): void {
+  const el = $("selectedText") as HTMLTextAreaElement | null;
+  if (el) state.text = el.value;
+}
+
+/** The Result box is editable too — user edits before Replace/Copy
+ *  must be honored, otherwise Replace would silently apply the
+ *  ORIGINAL rewrite and throw away the user's manual changes. */
+function syncResultText(): void {
+  const el = $("resultText") as HTMLTextAreaElement | null;
+  if (el) state.rewritten = el.value;
+}
+
 async function getCurrentTabSelection(): Promise<void> {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab?.id) return;
@@ -138,12 +161,14 @@ function setText(el: HTMLElement, value: string): void {
 }
 
 async function runOp(op: RewriteOperation, customInstruction?: string): Promise<void> {
+  syncWorkingText();
   if (!state.text.trim()) {
-    setErr("Select some text in the page first.");
+    setErr("Write some text above, or select text in the page first.");
     scrollToResult();
     return;
   }
   setErr(null);
+  state.rewritten = "";
   setText($("resultText") as HTMLElement, "");
   scrollToResult();
   const isAnalysis = ANALYSIS_OPERATIONS.has(op);
@@ -170,12 +195,14 @@ async function runOp(op: RewriteOperation, customInstruction?: string): Promise<
 }
 
 async function runTone(tone: ToneMode): Promise<void> {
+  syncWorkingText();
   if (!state.text.trim()) {
-    setErr("Select some text in the page first.");
+    setErr("Write some text above, or select text in the page first.");
     scrollToResult();
     return;
   }
   setErr(null);
+  state.rewritten = "";
   setText($("resultText") as HTMLElement, "");
   scrollToResult();
   setReplaceEnabled(false, "Run the action first");
@@ -268,17 +295,25 @@ function setReplaceEnabled(enabled: boolean, note?: string): void {
 
 function hookActions(): void {
   renderActionMenu();
+  // Keep state in sync with everything the user types/edits in the two
+  // boxes (the working area is editable by design).
+  ($("selectedText") as HTMLTextAreaElement)?.addEventListener("input", syncWorkingText);
+  ($("resultText") as HTMLTextAreaElement)?.addEventListener("input", syncResultText);
   ($("runCustom") as HTMLElement).addEventListener("click", () => {
     const custom = ($("customInstruction") as HTMLInputElement).value.trim();
     void runOp("custom", custom);
   });
   ($("replaceBtn") as HTMLElement).addEventListener("click", async () => {
+    syncResultText();
     if (!state.rewritten) {
       setErr("Nothing to replace with. Run a rewrite first.");
       return;
     }
     if (state.editorId == null || typeof state.start !== "number" || typeof state.end !== "number") {
-      setErr("No editor is bound to this rewrite. Select text in the page first.");
+      setErr(
+        "This text has no page editor bound. Use Copy to paste it where you need it, " +
+        "or select text in the page and run the action again.",
+      );
       return;
     }
     if (!state.expectedHash) {
@@ -301,8 +336,16 @@ function hookActions(): void {
     setErr("Replaced.");
   });
   ($("copyBtn") as HTMLElement).addEventListener("click", async () => {
+    syncResultText();
+    // Copy prefers the (possibly edited) result; with no result yet,
+    // fall back to the working text so panel-written drafts are copyable.
+    const payload = state.rewritten || state.text;
+    if (!payload) {
+      setErr("Nothing to copy yet.");
+      return;
+    }
     try {
-      await navigator.clipboard.writeText(state.rewritten);
+      await navigator.clipboard.writeText(payload);
     } catch {
       setErr("Clipboard not available.");
     }
@@ -312,6 +355,11 @@ function hookActions(): void {
 chrome.runtime.onMessage.addListener((msg) => {
   if (!msg || typeof msg !== "object") return;
   if (msg.type === "side-panel-rewrite") {
+    // The working area is editable — do NOT clobber text the user is
+    // actively typing there. A fresh page selection still wins as soon
+    // as the user clicks back into the box-less state (unfocused).
+    const box = $("selectedText") as HTMLTextAreaElement | null;
+    if (box && document.activeElement === box) return;
     state.text = (msg.text as string) ?? "";
     state.editorId = msg.editorId as string | undefined;
     state.tabId = msg.tabId as number | undefined;
@@ -319,6 +367,7 @@ chrome.runtime.onMessage.addListener((msg) => {
     state.end = msg.end as number | undefined;
     state.expectedHash = msg.expectedHash as string | undefined;
     setText($("selectedText") as HTMLElement, state.text);
+    state.rewritten = "";
     setText($("resultText") as HTMLElement, "");
     setReplaceEnabled(false, "Run an action first");
   }

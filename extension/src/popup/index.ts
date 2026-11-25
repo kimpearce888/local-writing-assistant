@@ -66,6 +66,25 @@ function hookActions(): void {
   ($("settingsBtn") as HTMLElement).addEventListener("click", () => {
     chrome.runtime.openOptionsPage();
   });
+  // Open the side panel writing area. Called DIRECTLY in the popup —
+  // this context has the user gesture, and the gesture must not be
+  // lost on a message round-trip through the service worker (MV3 SWs
+  // can be cold-started by the message, dropping gesture eligibility).
+  // After opening, poke the content script so the current page
+  // selection (or focused field's full text) prefills the panel.
+  ($("panelBtn") as HTMLElement).addEventListener("click", async () => {
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (!tab?.id) return;
+      await chrome.sidePanel?.open?.({ tabId: tab.id });
+      chrome.tabs.sendMessage(tab.id, { type: "selection-for-rewrite-query" }).catch(
+        () => undefined,
+      );
+      window.close();
+    } catch {
+      // sidePanel API unavailable (old Chromium) — leave the popup open.
+    }
+  });
   ($("diagBtn") as HTMLElement).addEventListener("click", () => {
     chrome.tabs.create({ url: chrome.runtime.getURL("options.html#diagnostics") });
   });
