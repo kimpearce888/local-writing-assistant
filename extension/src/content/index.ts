@@ -443,17 +443,22 @@ engine = new SuggestionEngine({
     const entry = [...editors.values()].find(
       (e) => e.adapter.getEditorIdentity() === result.editorId,
     );
-    if (entry) {
-      // Replace any previous click handler before attaching a new
-      // one — HighlightLayer.onClick now removes the previous listener
-      // internally, but we still capture the returned unsubscribe so
-      // cleanup on dispose is correct.
-      entry.unsubscribeClick?.();
-      entry.layer.render(entry.adapter, result.issues);
-      entry.unsubscribeClick = entry.layer.onClick((id) =>
-        onIssueMarkerClick(result.editorId, id),
-      );
-    }
+    // The inlineSuggestions setting gates marker rendering only — the
+    // status/popup plumbing still runs so the toolbar state stays honest.
+    void getSettings().then((s) => {
+      if (!s.inlineSuggestions) return;
+      if (entry) {
+        // Replace any previous click handler before attaching a new
+        // one — HighlightLayer.onClick now removes the previous listener
+        // internally, but we still capture the returned unsubscribe so
+        // cleanup on dispose is correct.
+        entry.unsubscribeClick?.();
+        entry.layer.render(entry.adapter, result.issues);
+        entry.unsubscribeClick = entry.layer.onClick((id) =>
+          onIssueMarkerClick(result.editorId, id),
+        );
+      }
+    });
     chrome.runtime
       .sendMessage({ type: "status", state: "done", count: result.issues.length })
       .catch(() => undefined);

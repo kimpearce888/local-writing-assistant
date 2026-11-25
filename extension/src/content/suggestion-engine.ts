@@ -25,6 +25,7 @@ import {
 import { buildGrammarPrompt } from "../shared/prompts";
 import { parseGrammarResponse } from "../shared/ai-validation";
 import { hashText, truncateToUtf8Bytes } from "../shared/text-utils";
+import { Semaphore } from "../shared/concurrency";
 import { getSettings, getDictionary, getIgnoredWords, ignoreSuggestionOnce } from "../shared/storage";
 
 /**
@@ -86,6 +87,9 @@ export class SuggestionEngine {
   private inFlight = new Map<string, InFlight>();
   private cache = new Map<string, AnalyzeResult>();
   private seq = 1;
+  /** Honors the maxConcurrent setting (1–8): at most N analyses hit the
+   *  native host at once; the rest queue FIFO. */
+  private limiter = new Semaphore(2);
 
   constructor(cbs: SuggestionEngineCallbacks) {
     this.cbs = cbs;
@@ -98,6 +102,8 @@ export class SuggestionEngine {
   async analyze(adapter: EditorAdapter): Promise<void> {
     const settings = await getSettings();
     if (!settings.enabled || !settings.autoCheck) return;
+    // Keep the concurrency limiter in sync with the user's setting.
+    this.limiter.setLimit(settings.maxConcurrent);
     // IMPORTANT: use raw editor text for hashing + offsets. We must NOT
     // normalize here, because the offsets returned by the LLM refer to
     // the same string we sent it. If we normalized for hashing but sent
@@ -144,7 +150,9 @@ export class SuggestionEngine {
     this.cbs.onAnalyzeStart(adapter.getEditorIdentity());
 
     try {
-      const result = await this._doAnalyze(adapter, text, hash, requestId, controller);
+      const result = await this.limiter.run(() =>
+        this._doAnalyze(adapter, text, hash, requestId, controller),
+      );
       if (controller.signal.aborted) return;
       this.cache.set(hash, result);
       // Cap cache size — keep last 64 entries.
