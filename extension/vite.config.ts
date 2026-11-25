@@ -18,7 +18,7 @@ import { copyFileSync, mkdirSync, existsSync, readdirSync, statSync } from "node
  * To achieve both in one project, we use Vite's `build.lib` mode for
  * the content script via a second build pass. The main `vite build` run
  * produces the HTML pages + service worker; `vite build --mode content`
- * (see scripts/build-content.mjs) produces the IIFE content.js.
+ * produces the IIFE content.js.
  */
 
 function copyPublicDir() {

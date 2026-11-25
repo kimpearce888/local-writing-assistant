@@ -21,7 +21,7 @@ Instead, report privately using one of:
 
 1. **GitHub's private vulnerability reporting** — go to <https://github.com/kimpearce888/local-writing-assistant/security/advisories/new> and use the "Report a vulnerability" button. This is the preferred channel — it lets the maintainer discuss details with you privately and then optionally publish a GitHub Security Advisory with CVE assignment when a fix is ready.
 
-2. **Email** — if GitHub's reporting tool isn't available to you, email the maintainer directly. (Replace the email with the maintainer's actual contact if different.) Please encrypt sensitive details using the maintainer's published PGP key if available.
+2. **GitHub issue (low severity only)** — for minor, non-exploitable issues (typos in the security docs, build warnings), a regular GitHub issue is fine. Never include reproduction payloads for exploitable bugs in a public issue.
 
 ## What to include
 

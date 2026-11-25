@@ -61,7 +61,7 @@ $LMS_DOWNLOAD_PAGE = "https://lmstudio.ai/"
 # Common LM Studio install locations on Windows (per-user + per-machine).
 $LMS_INSTALL_PATHS = @(
   "${env:LOCALAPPDATA}\LM-Studio\LM Studio.exe",
-  "${env:LOCALAPPDATA\Programs\LM-Studio\LM Studio.exe",
+  "$($env:LOCALAPPDATA)\Programs\LM-Studio\LM Studio.exe",
   "${env:ProgramFiles}\LM Studio\LM Studio.exe",
   "${env:ProgramFiles(x86)}\LM Studio\LM Studio.exe"
 )
@@ -117,7 +117,7 @@ function Find-LMStudioExe {
           }
         }
     }
-  } catch { /* ignore */ }
+  } catch { }
   return $null
 }
 
@@ -148,16 +148,24 @@ function Get-LMStudioInstallerUrl {
     # Look for href="...exe" links that look like Windows installers.
     $matches = [regex]::Matches(
       $resp.Content,
-      'https?://[^\s"''<>]+\.exe',
+      'https://[^\s"''<>]+\.exe',
       "IgnoreCase"
     )
     foreach ($m in $matches) {
       $url = $m.Value
-      if ($url -match "win|x64|windows" -or $url -match "lm.?studio" -and $url -notmatch "mac|linux") {
+      # Only download from an lmstudio.ai host, https only, never mac/linux
+      # builds. The -and group is parenthesized explicitly: PowerShell binds
+      # -and tighter than -or, so the un-parenthesized version let a URL
+      # containing "win" bypass the mac|linux exclusion.
+      if (
+        ($url -match "win|x64|windows" -or $url -match "lm.?studio") -and
+        $url -notmatch "mac|linux" -and
+        $url -match '^https://([^/]*\.)?lmstudio\.ai/'
+      ) {
         return $url
       }
     }
-    # No filter match — return the first .exe URL we found.
+    # No filter match — return the first allowed .exe URL we found.
     if ($matches.Count -gt 0) { return $matches[0].Value }
   } catch {
     Write-Warn2 "Could not fetch download page: $_"
@@ -174,7 +182,7 @@ function Install-LMStudio {
     Write-Warn2 "download the Windows installer, run it, then re-run Install.bat."
     try {
       Start-Process $LMS_DOWNLOAD_PAGE
-    } catch { /* ignore */ }
+    } catch { }
     return $false
   }
   Write-Step "Downloading installer: $installerUrl"
@@ -184,7 +192,7 @@ function Install-LMStudio {
   } catch {
     Write-Warn2 "Download failed: $_"
     Write-Warn2 "Opening https://lmstudio.ai/ in your browser — download manually."
-    try { Start-Process $LMS_DOWNLOAD_PAGE } catch { /* ignore */ }
+    try { Start-Process $LMS_DOWNLOAD_PAGE } catch { }
     return $false
   }
   Write-OK "Downloaded installer ($('{0:N1}' -f ((Get-Item $tmpExe).Length / 1MB)) MiB)"
@@ -294,7 +302,7 @@ function Open-LMStudioServerTab {
   # but LM Studio doesn't currently.)
   $exe = Find-LMStudioExe
   if ($exe) {
-    try { Start-Process -FilePath $exe } catch { /* ignore */ }
+    try { Start-Process -FilePath $exe } catch { }
   }
   Write-Warn2 "  In LM Studio: click the 'Local Server' tab (left sidebar)"
   Write-Warn2 "  → click 'Start Server' (it should already be on port $LMS_PORT)"

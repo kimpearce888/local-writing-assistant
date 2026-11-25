@@ -49,10 +49,10 @@ jobs:
     name: Build CRX3 + update.xml
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Node
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "24"
           cache: npm
@@ -114,7 +114,11 @@ jobs:
           # Also publish the unpacked extension folder for direct "load unpacked" downloads.
           cp -r extension/dist dist-pages/extension
 
+      # Only publish update.xml when a CRX was actually built — an
+      # update.xml pointing at a missing extension.crx guarantees a 404
+      # for every Mode A consumer polling the feed.
       - name: Generate update.xml
+        if: ${{ hashFiles('dist-pages/extension.crx') != '' }}
         run: |
           cat > dist-pages/update.xml <<EOF
           <gupdate xmlns="http://www.google.com/update2/response" protocol="2.0">
@@ -126,7 +130,7 @@ jobs:
           cat dist-pages/update.xml
 
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v5
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: dist-pages
 
@@ -141,4 +145,4 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v5
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

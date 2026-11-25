@@ -18,7 +18,7 @@ The automated CI workflow will reject PRs that introduce:
 
 You need:
 
-- Node.js 20+ and npm
+- Node.js 24+ and npm
 - Go 1.23+
 
 Fork the repo, clone your fork, and run:
@@ -114,12 +114,11 @@ The maintainer will look at:
 
 ## Extension signing
 
-For local development, the extension loads as "unpacked" with a temporary ID derived from the absolute path. For production distribution with a stable Chrome-recognized ID:
+The RSA keypair was already generated and the **public key is committed** in `extension/public/manifest.json` under the `"key"` field, so unpacked loads get the stable extension ID `lclfegmpnhibpkijgmlpjaoemnjpabcp` on every machine — development and packaged builds share one ID.
 
-1. Generate an RSA keypair once (`openssl genrsa -out key.pem 2048 && openssl rsa -in key.pem -pubout -out public.pem`).
-2. Put the public key in `extension/public/manifest.json` under the `"key"` field.
-3. Keep `key.pem` **out of source control**, in a password manager or CI secret.
-4. The extension ID is then derived from the public key and is stable across machines.
+1. The matching private key lives **out of source control** (`.keys/extension.pem`, gitignored; also provisioned as the `CRX_SIGNING_KEY` CI secret).
+2. `scripts/build-crx.cjs` signs release CRX3 files with that key; `scripts/embed-public-key.sh` re-embeds a rotated public key into the manifest if the keypair is ever replaced.
+3. Replacing the keypair changes the extension ID — every installer pins the ID, so rotation requires updating install.ps1 / install.sh / diagnose scripts together.
 
 See `DEVELOPMENT.md` → "Extension signing" for details.
 

@@ -16,6 +16,7 @@
     "test:e2e": "npx playwright test --reporter=list",
     "test": "npm run test:unit && npm run test:native && npm run test:integration",
     "typecheck": "cd extension && npm run typecheck",
+    "typecheck:tests": "cd extension && npx tsc -p ../tsconfig.test.json --noEmit",
     "package": "node scripts/package.cjs",
     "package:windows": "node scripts/package.cjs --windows",
     "package:linux": "node scripts/package.cjs --linux",

@@ -21,10 +21,10 @@ jobs:
     name: Extension (typecheck + tests + audits)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Node
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "24"
           cache: npm
@@ -45,6 +45,9 @@ jobs:
 
       - name: Run Vitest unit tests
         run: npx vitest run --reporter=verbose
+
+      - name: Type-check test sources
+        run: npm run typecheck:tests
 
       - name: Static network audit (spec section 92)
         run: node scripts/network-audit.cjs
@@ -71,7 +74,7 @@ jobs:
           done
 
       - name: Upload extension artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: extension-dist
           path: extension/dist/
@@ -85,10 +88,10 @@ jobs:
       run:
         working-directory: native-host
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Go
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version: "1.23"
           cache: true
@@ -116,10 +119,10 @@ jobs:
       run:
         working-directory: tests
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Go
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version: "1.23"
           cache: true
@@ -135,10 +138,10 @@ jobs:
       run:
         working-directory: native-host
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Go
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version: "1.23"
           cache: true
@@ -175,7 +178,7 @@ jobs:
         run: |
           # Verify the Linux binary runs and responds to a ping.
           # LOCAL_MOCK_AI=true short-circuits any LM Studio HTTP call.
-          # Wire protocol: 4-byte LE uint32 length prefix + JSON body.
+          # Wire protocol: 4-byte native-endian (LE on this runner) uint32 length prefix + JSON body.
           MSG='{"command":"ping","requestId":"smoke-1"}'
           LEN=${#MSG}
           # Build the wire message: 4-byte LE length prefix + JSON.
@@ -184,7 +187,7 @@ jobs:
             | head -c 200 || true
 
       - name: Upload Windows EXE artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: native-host-exe
           path: native-host/build/LocalWritingAssistantHost.exe
@@ -195,10 +198,10 @@ jobs:
     name: E2E browser tests (Playwright)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Node
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "24"
           cache: npm
@@ -207,7 +210,7 @@ jobs:
             extension/package-lock.json
 
       - name: Setup Go
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version: "1.23"
           cache: true
@@ -244,7 +247,7 @@ jobs:
 
       - name: Upload Playwright trace on failure
         if: failure()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: playwright-traces
           path: test-results/

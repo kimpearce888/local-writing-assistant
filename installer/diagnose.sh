@@ -80,9 +80,13 @@ HOST_BIN="$INSTALL_DIR/native-host/LocalWritingAssistantHost"
 if [ -f "$HOST_BIN" ]; then
   if [ -x "$HOST_BIN" ]; then
     ok "  Native host binary present and executable: $HOST_BIN"
-    # Verify it actually runs (--version)
-    if "$HOST_BIN" --version &>/dev/null || true; then
+    # Verify it actually runs (--version). The host supports a --version
+    # flag that prints and exits WITHOUT reading stdin; </dev/null guards
+    # against older binaries that would block on stdin EOF from a TTY.
+    if "$HOST_BIN" --version </dev/null &>/dev/null; then
       ok "  Binary executes (ELF magic OK)"
+    else
+      fail "  Binary does not execute correctly (--version failed)"
     fi
   else
     fail "  Native host binary present but not executable. Run: chmod +x $HOST_BIN"

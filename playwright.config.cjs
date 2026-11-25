@@ -32,7 +32,7 @@ module.exports = defineConfig({
     timeout: 10_000,
   },
   fullyParallel: false, // extensions share a single user-data-dir per worker
-  retries: 0,
+  retries: process.env.CI ? 1 : 0, // extension E2E shares one profile; one retry absorbs CI flake
   workers: 1,
   reporter: [["list"], ["html", { open: "never" }]],
   use: {

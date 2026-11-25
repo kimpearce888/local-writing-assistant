@@ -54,6 +54,14 @@ function copyRecursive(src, dest) {
     }
   } else {
     fs.copyFileSync(src, dest);
+    // Preserve the executable bit for shell scripts inside staged folders —
+    // copyFileSync does not carry file modes, so install.sh inside the
+    // staged installer/ directory would land in the ZIP as 644.
+    try {
+      fs.chmodSync(dest, stat.mode & 0o777);
+    } catch {
+      // best effort (Windows ignores modes)
+    }
   }
 }
 
@@ -110,9 +118,12 @@ function stageFor(platform, hostPath) {
     }
   }
 
-  // Top-level README.
+  // Top-level README — the Windows packaging note is not accurate for
+  // Linux ZIPs (it references Install.bat), so pick the right variant.
+  const readmeName = platform === "linux" ? "README-linux.txt" : "README.txt";
+  const readmeSrc = path.join(ROOT, "packaging", readmeName);
   fs.copyFileSync(
-    path.join(ROOT, "packaging", "README.txt"),
+    fs.existsSync(readmeSrc) ? readmeSrc : path.join(ROOT, "packaging", "README.txt"),
     path.join(top, "README.txt"),
   );
 

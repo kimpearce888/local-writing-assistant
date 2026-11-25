@@ -6,6 +6,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Security
+- Scrubbed a leaked machine credential and a personal absolute path from `HANDOVER.md` (introduced in a6a12c7). The credential must be rotated separately — it remains in git history.
+- `native-bridge-call` in the service worker is now guarded: sender identity check, 6-command allowlist, and a 1 MiB payload cap (the content script previously could request any command with any payload size).
+- Settings import/export no longer round-trips the dead `lmStudioToken` field; every settings value is now type-checked and clamped by `validateSettings` (message path, import, and storage reads).
+- Custom rewrite instructions can no longer break out of the `<user_instruction>` delimiters (`sanitizeCustomInstruction`).
+- CRX3 packager rewritten: the signature is now computed over `"CRX3 SignedData\0" + signedHeaderData + archive` and emitted as `AsymmetricKeyProof{public_key=1, signature=2}` inside `sha256_with_rsa` (field 2), with `signed_header_data` (field 10000) carrying the `crx_id` — the previous output was rejected by Chrome. Self-verification step added.
+- LM Studio client rejects cross-host redirects and clamps extension-controlled `Temperature` (0–2) and `MaxTokens` (≤8192).
+
+### Fixed
+- Context-menu click listener is registered synchronously at top level (MV3 requirement) — it previously died on every service-worker cold restart and stacked duplicates on `onInstalled`+`onStartup`.
+- Per-site pause gained a "Resume on this site" action and the content script re-evaluates pause/exclusion live via `storage.onChanged`; the button label no longer claims "until next page reload".
+- Cached analysis results are re-tagged per requesting editor — two editors with identical text no longer apply each other's suggestions.
+- Text truncation at the host boundary is UTF-8-byte accurate (was UTF-16 chars, desyncing offsets for CJK/emoji).
+- Windows `setup-lm-studio.ps1` syntax errors (invalid `/* */` comments, broken `${env:...}` interpolation) killed the LM Studio bootstrap; fixed, download now restricted to `https://*.lmstudio.ai`.
+- `install.ps1` gains the documented `-UpdateUrlBase` parameter and verifies `manifest.json` landed after the extension copy.
+- `diagnose.sh` no longer hangs on the native host check (host gained a real `--version` flag).
+- Framing uses `binary.NativeEndian` per the Native Messaging spec; config-file token precedence fixed; `check_connection` bounded by one 25s budget.
+- Inno Setup installer: version synced to 1.7.1, proper `.ico`, Start-Menu launchers now packaged.
+
+### Changed
+- All GitHub Actions pinned to full commit SHAs; release workflow's `inputs.tag` no longer interpolated into shell; `pages.yml` skips `update.xml` when no CRX was built.
+- Unused permissions removed: `host_permissions` for localhost:1234 and the `web_accessible_resources` exposure of `content.css` (all traffic goes through native messaging).
+- Dead settings implemented (`inlineSuggestions`, `maxConcurrent` via a FIFO semaphore) or removed (`contextLength`, `storeHistoryLocally`); `debounceMs` is honored.
+- Docs: version badge 1.5.1 → 1.7.1, test counts corrected (72/16/12/10), Mode A described as enterprise-only, stale DEVELOPMENT/CONTRIBUTING sections updated.
+
 ## [1.7.1] — 2026-11-24
 
 ### Changed
@@ -448,7 +473,12 @@ No cloud, no telemetry, no remote backend, no SaaS, no account, no login. The on
 - The PowerShell installer scripts have been manually reviewed for syntax and brace balance but have not been executed against real Windows PowerShell in this release. Run `Diagnose.bat` after install to verify every layer.
 - Real-world contenteditable behavior in Gmail / Outlook web / other rich-text editors may surface edge cases. The adapter uses `execCommand("insertText")` for undo preservation, but some editors intercept or override this command.
 
-[Unreleased]: https://github.com/kimpearce888/local-writing-assistant/compare/v1.5.0...HEAD
+[Unreleased]: https://github.com/kimpearce888/local-writing-assistant/compare/v1.7.1...HEAD
+[1.7.1]: https://github.com/kimpearce888/local-writing-assistant/releases/tag/v1.7.1
+[1.7.0]: https://github.com/kimpearce888/local-writing-assistant/releases/tag/v1.7.0
+[1.6.0]: https://github.com/kimpearce888/local-writing-assistant/releases/tag/v1.6.0
+[1.5.2]: https://github.com/kimpearce888/local-writing-assistant/releases/tag/v1.5.2
+[1.5.1]: https://github.com/kimpearce888/local-writing-assistant/releases/tag/v1.5.1
 [1.5.0]: https://github.com/kimpearce888/local-writing-assistant/releases/tag/v1.5.0
 [1.4.0]: https://github.com/kimpearce888/local-writing-assistant/releases/tag/v1.4.0
 [1.3.0]: https://github.com/kimpearce888/local-writing-assistant/releases/tag/v1.3.0

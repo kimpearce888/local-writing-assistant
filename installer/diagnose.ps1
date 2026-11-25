@@ -70,8 +70,11 @@ Write-Host "Chrome policy:" -ForegroundColor Cyan
 if (Test-Path $ChromePolicy_User) {
   $existing = Get-ItemProperty -Path $ChromePolicy_User -Name "ExtensionInstallForcelist" -ErrorAction SilentlyContinue
   if ($existing) {
-    $count = ($existing.PSObject.Properties | Where-Object { $_.Name -match "^\d+$" }).Count
-    Pass "ExtensionInstallForcelist exists with $count entry(ies)."
+    # ExtensionInstallForcelist is a REG_MULTI_SZ: its entries live in ONE
+    # property value as a string array, not as numbered sub-properties
+    # (the old count was always 0). Cast to a string array for the count.
+    $entries = @($existing.ExtensionInstallForcelist)
+    Pass "ExtensionInstallForcelist exists with $($entries.Count) entry(ies)."
   } else {
     Warn "ExtensionInstallForcelist not present (Mode B manual install)."
   }

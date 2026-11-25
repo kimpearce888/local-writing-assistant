@@ -3,7 +3,7 @@
 [![CI](https://github.com/kimpearce888/local-writing-assistant/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/kimpearce888/local-writing-assistant/actions/workflows/ci.yml)
 [![E2E](https://img.shields.io/badge/E2E-10%2F10%20passing-brightgreen.svg)](#testing)
 [![Release](https://github.com/kimpearce888/local-writing-assistant/actions/workflows/release.yml/badge.svg)](https://github.com/kimpearce888/local-writing-assistant/releases)
-[![Version](https://img.shields.io/badge/version-1.5.1-blue.svg)](https://github.com/kimpearce888/local-writing-assistant/releases/tag/v1.5.1)
+[![Version](https://img.shields.io/badge/version-1.7.1-blue.svg)](https://github.com/kimpearce888/local-writing-assistant/releases/tag/v1.7.1)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![No cloud](https://img.shields.io/badge/runtime-no%20cloud%20AI-1f6feb.svg)](PRIVACY.md)
 
@@ -15,7 +15,7 @@ Your text never leaves your computer. No cloud AI, no telemetry, no account. The
   <img src="docs/screenshots/suggestion-popup.png" alt="Inline grammar suggestion popup over a real email compose UI — the word 'don\'t have' is underlined and a popup offers Replace / Ignore / Add to dictionary" width="720" />
 </p>
 
-> **v1.5.0** — one-click install now auto-bootstraps LM Studio. [See what's new →](#whats-new)
+> **v1.7.1** — actionable LM Studio error classification + v1.6 categorized side-panel menu. [See what's new →](CHANGELOG.md)
 
 ---
 
@@ -88,7 +88,7 @@ The installer:
 
 ### Chrome extension loading (Mode A vs Mode B)
 
-- **Windows enterprise Chrome (Mode A):** silently force-installed via `ExtensionInstallForcelist` pointing at our GitHub Pages `update.xml`. Zero manual steps.
+- **Windows enterprise Chrome (Mode A):** force-installed via `ExtensionInstallForcelist` pointing at our GitHub Pages `update.xml`. This only takes effect on **enterprise-managed Chrome** (group policy enrolled); on a personal Chrome installation, modern versions ignore off-store Forcelist entries and fall back to Mode B.
 - **Personal Chrome on Windows or Linux (Mode B):** Chrome refuses to silently install off-store extensions. The installer prints clear instructions for a one-time `Load unpacked` step (Developer mode ON → select the extension folder). Mode A does not exist on Linux (Linux Chrome doesn't have group policy support like Windows).
 
 > **Advanced users** who already have LM Studio set up: pass `-SkipLMStudio` (Windows) or `--skip-lm-studio` (Linux) to the installer.
@@ -101,7 +101,7 @@ The installer:
 |---|---|
 | `Alt+Shift+L` | Check writing in the focused editor |
 | `Alt+Shift+R` | Open the rewrite side panel for the current selection |
-| `Alt+Shift+O` | Open the popup |
+| `Alt+Shift+O` | Open the side panel (falls back to the popup when no tab is focused) |
 
 Remappable in `chrome://extensions/shortcuts`. Right-click selected text anywhere for **Improve writing · Make shorter · Make professional · Rewrite…**.
 
@@ -159,9 +159,9 @@ npm test                  # all suites
 
 | Suite | What it covers | Count |
 |---|---|---|
-| Vitest | AI parser, text utils, stale-result protection, sensitive-field detection, prompts | 37 |
-| Go unit | Native-messaging protocol, security allowlists, payload clamps | 4 |
-| Go integration | Wire-protocol round-trip against built host binary, mock-AI mode | 9 |
+| Vitest | AI parser, text utils, stale-result protection, sensitive-field detection, prompts, settings validation, UTF-8 truncation, prompt-injection sanitizer, concurrency limiter | 72 |
+| Go unit | Native-messaging protocol, security allowlists (incl. adversarial URL encodings), payload clamps, redirect + parameter clamps | 16 |
+| Go integration | Wire-protocol round-trip against built host binary, mock-AI mode | 12 |
 | Playwright E2E | Real Chrome + mock AI: popup, textarea, contenteditable, replace, password skip, prompt-injection safety, ignore, scroll, side-panel, pause-site | 10 |
 
 All run on every push/PR via GitHub Actions. The E2E suite uses `LOCAL_MOCK_AI=true` so it runs without a real LM Studio — fully reproducible in CI.

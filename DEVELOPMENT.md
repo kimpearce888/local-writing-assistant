@@ -70,8 +70,6 @@ local-writing-assistant/
 │   ├── install.ps1                Main installer (Mode A + Mode B)
 │   ├── uninstall.ps1
 │   ├── diagnose.ps1               Read-only PASS/WARN/FAIL report
-│   ├── detect-chrome.ps1          Helper
-│   └── generate-policy.ps1        Helper
 │
 ├── tests/                         Vitest + Go integration tests
 │   ├── ai-validation.test.ts      Strict AI parser tests
@@ -86,9 +84,10 @@ local-writing-assistant/
 │   ├── generate-icons.cjs         PNG icon generator
 │   ├── network-audit.cjs          Static network audit (section 92)
 │   ├── security-audit.cjs         Static security audit (section 93)
-│   └── package.js                 ZIP packager
+│   ├── package.cjs                ZIP packager
+│   ├── build-crx.cjs              CRX3 packager (signed .crx for Mode A)
 │
-├── packaging/                     README.txt for the final ZIP
+├── packaging/                     ZIP top-level READMEs (README.txt / README-linux.txt)
 ├── docs/                          Additional docs
 │
 ├── README.md
@@ -104,7 +103,7 @@ local-writing-assistant/
 
 ### Prerequisites
 
-* Node.js 20+ and npm
+* Node.js 24+ and npm
 * Go 1.23+
 
 ### Build the extension
@@ -136,10 +135,10 @@ The Windows EXE is a standalone ~5 MB binary — no Go runtime needed on the tar
 
 ```bash
 # From the repository root:
-npm run test:unit            # vitest (37 unit tests)
+npm run test:unit            # vitest (72 unit tests)
 npm test                     # full suite: unit + native + integration (E2E is separate: npm run test:e2e)
-npm run test:native          # go test ./... (4 unit tests)
-npm run test:integration     # go test ./... in tests/ (6 integration tests)
+npm run test:native          # go test ./... in native-host/ (16 unit tests)
+npm run test:integration     # go test ./... in tests/ (12 integration tests)
 npm run typecheck            # tsc --noEmit
 ```
 
@@ -168,7 +167,7 @@ npm run package              # outputs dist/Local-Writing-Assistant-Windows.zip
 2. Open `chrome://extensions`
 3. Enable Developer Mode
 4. Click "Load unpacked" and select `extension/dist/`
-5. The extension loads with a temporary extension ID
+5. The extension loads with the stable pinned ID `lclfegmpnhibpkijgmlpjaoemnjpabcp` (derived from the committed manifest `"key"` — same ID in dev and in packaged builds)
 
 ### Native host
 

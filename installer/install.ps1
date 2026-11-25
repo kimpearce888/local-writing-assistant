@@ -33,7 +33,10 @@ param(
   [string]$InstallDir = "",
   [switch]$Force,
   [switch]$Silent,
-  [switch]$SkipLMStudio  # Skip the LM Studio bootstrap (advanced users)
+  [switch]$SkipLMStudio,  # Skip the LM Studio bootstrap (advanced users)
+  # Base URL operators who self-host the CRX + update.xml should override.
+  # Example: -UpdateUrlBase "https://updates.example.com/lwa"
+  [string]$UpdateUrlBase = "https://kimpearce888.github.io/local-writing-assistant"
 )
 
 $ErrorActionPreference = "Stop"
@@ -240,6 +243,16 @@ if ($robocopyExit -ge 8) {
 }
 Write-OK "Extension files copied to $installExtDir"
 
+# Sanity-check the copy actually produced a loadable extension folder.
+# robocopy exits 0-3 for success even when it copied nothing, so verify
+# manifest.json is present (install.sh does the same check).
+if (-not (Test-Path (Join-Path $installExtDir "manifest.json"))) {
+  Write-Fail "manifest.json is missing from $installExtDir after copy."
+  Write-Fail "If you ran this from a dev checkout, build first (npm run build:extension)"
+  Write-Fail "or run the installer from the packaged installer/ folder."
+  exit 1
+}
+
 # ---------------------------------------------------------------------------
 # 8. Generate update.xml for enterprise (ExtensionInstallForcelist)
 # ---------------------------------------------------------------------------
@@ -270,8 +283,8 @@ if (Test-Path $manifestJsonPath) {
 # Pointing codebase at update.xml itself would be circular — Chrome
 # would download update.xml's XML body and try to parse it as a CRX3,
 # failing signature verification. Mode A would silently fail.
-$updateUrlBase = "https://kimpearce888.github.io/local-writing-assistant/update.xml"
-$crxUrlBase    = "https://kimpearce888.github.io/local-writing-assistant/extension.crx"
+$updateUrlBase = "$UpdateUrlBase/update.xml"
+$crxUrlBase    = "$UpdateUrlBase/extension.crx"
 $updateXml = @"
 <gupdate xmlns="http://www.google.com/update2/response" protocol="2.0">
   <app appid="$extensionId">

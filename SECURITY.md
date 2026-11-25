@@ -213,7 +213,7 @@ The worst the model can do is return malformed JSON, which the validator rejects
 
 * No cloud API keys exist anywhere in the source tree (verified by `security-audit.cjs`).
 * The optional LM Studio bearer token (if the user configures one) is stored in `chrome.storage.local` and sent only to `127.0.0.1:1234`. It is never logged.
-* The native host writes only lifecycle log lines to stderr (e.g. "REQUEST_STARTED", "REQUEST_COMPLETED", "REQUEST_FAILED"). User writing is never included in ordinary logs.
+* The native host writes only lifecycle log lines to stderr (e.g. "REQUEST_STARTED", "READ_FAILED", "WRITE_FAILED", "HOST_FATAL"). User writing is never included in ordinary logs.
 
 ---
 
