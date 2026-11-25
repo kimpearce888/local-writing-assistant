@@ -24,7 +24,7 @@ import {
 } from "../shared/types";
 import { buildGrammarPrompt } from "../shared/prompts";
 import { parseGrammarResponse } from "../shared/ai-validation";
-import { hashText } from "../shared/text-utils";
+import { hashText, truncateToUtf8Bytes } from "../shared/text-utils";
 import { getSettings, getDictionary, getIgnoredWords, ignoreSuggestionOnce } from "../shared/storage";
 
 /**
@@ -123,10 +123,14 @@ export class SuggestionEngine {
       this.inFlight.delete(adapter.getEditorIdentity());
     }
 
-    // Dedupe via cache.
+    // Dedupe via cache. A cached result carries the editorId of the
+    // editor that produced it — re-tag the result (and every issue) to
+    // the REQUESTING adapter before handing it on, otherwise two editors
+    // with identical text would both render the first editor's issues and
+    // a Replace click in editor B could mutate editor A's text.
     const cached = this.cache.get(hash);
     if (cached) {
-      this.cbs.onAnalyzeComplete(cached);
+      this.cbs.onAnalyzeComplete(this.retagResult(cached, adapter));
       return;
     }
 
@@ -148,7 +152,7 @@ export class SuggestionEngine {
         const firstKey = this.cache.keys().next().value;
         if (firstKey) this.cache.delete(firstKey);
       }
-      this.cbs.onAnalyzeComplete(result);
+      this.cbs.onAnalyzeComplete(this.retagResult(result, adapter));
     } catch (e: unknown) {
       if (controller.signal.aborted) return;
       const err = e as { code?: string; message?: string };
@@ -182,6 +186,16 @@ export class SuggestionEngine {
     this.cache.clear();
   }
 
+  /** Clone a result with every editorId re-tagged to the requesting adapter. */
+  private retagResult(result: AnalyzeResult, adapter: EditorAdapter): AnalyzeResult {
+    const editorId = adapter.getEditorIdentity();
+    return {
+      ...result,
+      editorId,
+      issues: result.issues.map((issue) => ({ ...issue, editorId })),
+    };
+  }
+
   private async _doAnalyze(
     adapter: EditorAdapter,
     text: string,
@@ -200,17 +214,14 @@ export class SuggestionEngine {
       },
     });
 
-    // Truncate to the native-host payload limit. We use the SAME text
-    // for hashing, slicing, and the LLM payload so that offsets returned
-    // by the model line up exactly with what we'll slice at apply time.
-    // (Previously this code built a "focusText" of the first 6 sentences
-    // joined with single spaces, which broke offsets whenever the
-    // original text contained paragraph breaks — the slice would land on
-    // the wrong characters and the apply step would falsely report
-    // STALE_RESULT.)
-    const analyzedText = text.length > LIMITS.maxAnalyzeTextBytes
-      ? text.slice(0, LIMITS.maxAnalyzeTextBytes)
-      : text;
+    // Truncate to the native-host payload limit. The host clamps by
+    // UTF-8 BYTES, so the extension must measure the same unit — using
+    // UTF-16 char counts silently desynced the two sides for non-ASCII
+    // (CJK/emoji) text and corrupted every returned offset. We use the
+    // SAME text for hashing, slicing, and the LLM payload so that offsets
+    // returned by the model line up exactly with what we'll slice at
+    // apply time.
+    const analyzedText = truncateToUtf8Bytes(text, LIMITS.maxAnalyzeTextBytes).text;
 
     const resp: NativeResponse = await sendNativeViaSW(
       "grammar_check",

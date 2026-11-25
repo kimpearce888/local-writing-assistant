@@ -10,11 +10,19 @@
  *  - run a one-off connection test on demand
  *
  * The service worker is intentionally stateless across restarts — all
- * persistent state lives in chrome.storage.local.
+ * persistent state lives in chrome.storage.local / chrome.storage.session.
+ *
+ * MV3 RULE: every chrome.* event listener MUST be registered synchronously
+ * at the top level of the module. The context-menu click listener used to
+ * live inside onInstalled/onStartup, so it vanished every time the worker
+ * was killed and cold-restarted (menu clicks were silently dropped), and
+ * stacked duplicates when both lifecycle events fired in one lifetime.
  */
 
 import {
   ExtensionSettings,
+  LIMITS,
+  NativeCommand,
   NativeRequest,
   NativeResponse,
   RewriteOperation,
@@ -25,56 +33,91 @@ import {
   getSettings,
   removeSiteExclusion,
   saveSettings,
-  setTabPaused,
+  setHostPaused,
+  validateSettings,
 } from "../shared/storage";
 import { sendNative } from "../shared/native-bridge";
 import { runRewrite, runToneTransform } from "../shared/rewrite";
 
 const SIDE_PANEL_TAB_KEY = "sidePanelTabId";
+const SUGGESTION_COUNT_PREFIX = "suggestionCount:";
+
+/** The only native commands a content-script bridge call may request. */
+const BRIDGE_ALLOWED_COMMANDS: ReadonlySet<string> = new Set<NativeCommand>([
+  "ping",
+  "get_config",
+  "get_models",
+  "check_connection",
+  "grammar_check",
+  "rewrite",
+]);
 
 /* ---------------- Lifecycle ---------------- */
 
-chrome.runtime.onInstalled.addListener(async () => {
-  await ensureDefaultContextMenus();
-  await ensureSidePanelSetup();
+chrome.runtime.onInstalled.addListener(() => {
+  void ensureDefaultContextMenus();
+  void ensureSidePanelSetup();
 });
 
-chrome.runtime.onStartup.addListener(async () => {
-  await ensureDefaultContextMenus();
-  await ensureSidePanelSetup();
+chrome.runtime.onStartup.addListener(() => {
+  void ensureDefaultContextMenus();
+  void ensureSidePanelSetup();
 });
+
+/** Context-menu definitions. The click listener below is registered at
+ *  module top level (MV3 requirement) and reads from this constant. */
+const CONTEXT_MENU_ENTRIES: Array<{
+  id: string;
+  title: string;
+  op?: RewriteOperation;
+}> = [
+  { id: "lwa-improve", title: "Improve writing", op: "improve" },
+  { id: "lwa-shorter", title: "Make shorter", op: "shorter" },
+  { id: "lwa-professional", title: "Make professional", op: "professional" },
+  // "Rewrite…" deliberately does NOT auto-run an operation: it opens the
+  // side panel with the selection preloaded and lets the user pick an
+  // action from the menu (the old entry mapped to op "improve" and was an
+  // exact duplicate of "Improve writing").
+  { id: "lwa-rewrite", title: "Rewrite…" },
+];
 
 async function ensureDefaultContextMenus(): Promise<void> {
   try {
     await chrome.contextMenus.removeAll();
-    const entries: Array<{ id: string; title: string; op: RewriteOperation }> = [
-      { id: "lwa-improve", title: "Improve writing", op: "improve" },
-      { id: "lwa-shorter", title: "Make shorter", op: "shorter" },
-      { id: "lwa-professional", title: "Make professional", op: "professional" },
-      { id: "lwa-rewrite", title: "Rewrite…", op: "improve" },
-    ];
-    for (const entry of entries) {
+    for (const entry of CONTEXT_MENU_ENTRIES) {
       chrome.contextMenus.create({
         id: entry.id,
         title: entry.title,
         contexts: ["selection"],
       });
     }
-    chrome.contextMenus.onClicked.addListener(async (info, tab) => {
-      if (!info.selectionText || !tab?.id) return;
-      const op = entries.find((e) => e.id === info.menuItemId)?.op ?? "improve";
-      await openSidePanelForTab(tab.id);
-      await chrome.runtime.sendMessage({
-        type: "side-panel-rewrite",
-        op,
-        text: info.selectionText,
-        tabId: tab.id,
-      }).catch(() => undefined);
-    });
   } catch {
     // ignore
   }
 }
+
+// Registered synchronously at module scope — NOT inside onInstalled/onStartup.
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+  if (!info.selectionText || !tab?.id) return;
+  const entry = CONTEXT_MENU_ENTRIES.find((e) => e.id === info.menuItemId);
+  if (!entry) return;
+  void (async () => {
+    await openSidePanelForTab(tab.id as number);
+    if (entry.op) {
+      await chrome.runtime.sendMessage({
+        type: "side-panel-rewrite",
+        op: entry.op,
+        text: info.selectionText,
+        tabId: tab.id,
+      }).catch(() => undefined);
+    } else {
+      // "Rewrite…": let the panel pull the current selection itself.
+      chrome.tabs.sendMessage(tab.id as number, {
+        type: "selection-for-rewrite-query",
+      }).catch(() => undefined);
+    }
+  })();
+});
 
 async function ensureSidePanelSetup(): Promise<void> {
   try {
@@ -140,27 +183,31 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     case "native-bridge-call":
       // Forward a native-messaging call from a content script (which
       // cannot call chrome.runtime.connectNative directly) to the host.
-      handleNativeBridgeCall(msg.command as string, msg.payload).then(reply).catch((e) =>
+      // Guarded: only our own extension may call it, only whitelisted
+      // commands pass, and the payload is size-capped.
+      handleNativeBridgeCall(msg, sender).then(reply).catch((e) =>
         reply({ ok: false, error: String(e) }),
       );
       return true;
 
     case "popup-get-settings":
-      getSettings().then(reply);
+      getSettings().then(reply).catch(() => reply(null));
       return true;
 
     case "popup-save-settings":
-      saveSettings(msg.settings as Partial<ExtensionSettings>).then(reply);
+      // Never persist unvalidated message payloads: validateSettings drops
+      // unknown keys and coerces/clamps every value to its declared type.
+      saveSettings(validateSettings(msg.settings) as Partial<ExtensionSettings>)
+        .then((s) => reply({ ok: true, settings: s }));
       return true;
 
     case "popup-pause-site": {
-      // The popup knows its own tab id; the SW's sender.tab?.id is
-      // undefined for messages from extension pages (popups, side
-      // panels). Use msg.tabId first, fall back to sender.tab?.id.
-      const tabId = typeof msg.tabId === "number"
-        ? msg.tabId
-        : (sender.tab?.id ?? -1);
-      handlePauseSite(tabId, !!msg.paused).then(() => reply({ ok: true }));
+      // The popup resolves the host from its own tab query (it holds an
+      // activeTab grant). We no longer map tabId → URL here: without the
+      // "tabs" permission chrome.tabs.get() does not return the URL, so
+      // the old path silently no-op'd outside the popup.
+      const host = typeof msg.host === "string" ? msg.host : "";
+      handlePauseSite(host, !!msg.paused).then(() => reply({ ok: true }));
       return true;
     }
 
@@ -192,23 +239,20 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
 
     case "side-panel-apply-rewrite": {
       // Forward to the content script of the originating tab. We trust
-      // the SW-stored SIDE_PANEL_TAB_KEY (set when the side panel was
-      // opened for a specific tab via the context-menu / keyboard
-      // shortcut), NOT msg.tabId from the side panel — otherwise a
-      // content script in a different tab could send a forged
-      // selection-for-rewrite message and hijack the rewrite flow to
-      // inject text into a tab the user didn't intend.
+      // ONLY the SW-stored SIDE_PANEL_TAB_KEY (set when the side panel
+      // was opened for a specific tab via the context-menu / keyboard
+      // shortcut / selection push) — NOT msg.tabId from the caller —
+      // otherwise a content script in a different tab could send a
+      // forged message and hijack the rewrite flow to inject text into
+      // a tab the user didn't intend.
       (async () => {
         const sessionData = await chrome.storage.session.get(SIDE_PANEL_TAB_KEY);
         const trustedTabId = sessionData[SIDE_PANEL_TAB_KEY] as number | undefined;
-        const targetTabId = typeof trustedTabId === "number"
-          ? trustedTabId
-          : msg.tabId;
-        if (typeof targetTabId !== "number") {
+        if (typeof trustedTabId !== "number") {
           reply({ ok: false, error: "EDITOR_UNSUPPORTED" });
           return;
         }
-        chrome.tabs.sendMessage(targetTabId, {
+        chrome.tabs.sendMessage(trustedTabId, {
           type: "apply-rewrite",
           editorId: msg.editorId,
           start: msg.start,
@@ -259,7 +303,15 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
       // icon so a silent failure (LM Studio offline, model error, no
       // model loaded) is visible without opening the popup: a red "!"
       // badge with the error in the hover title, cleared as soon as an
-      // analysis succeeds again.
+      // analysis succeeds again. The per-tab suggestion count is cached
+      // in session storage so the popup can show the real number.
+      if (typeof sender.tab?.id === "number") {
+        const countKey = SUGGESTION_COUNT_PREFIX + sender.tab.id;
+        const count = msg.state === "done" && typeof msg.count === "number"
+          ? msg.count
+          : 0;
+        chrome.storage.session.set({ [countKey]: count }).catch(() => undefined);
+      }
       if (msg.state === "error") {
         chrome.action.setBadgeText({ text: "!" }).catch(() => undefined);
         chrome.action.setBadgeBackgroundColor({ color: "#c62828" }).catch(
@@ -299,11 +351,22 @@ async function handlePopupStatusQuery(): Promise<{
   } catch {
     connected = false;
   }
+  let suggestionCount = 0;
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tab?.id) {
+      const data = await chrome.storage.session.get(SUGGESTION_COUNT_PREFIX + tab.id);
+      const v = data[SUGGESTION_COUNT_PREFIX + tab.id];
+      if (typeof v === "number") suggestionCount = v;
+    }
+  } catch {
+    suggestionCount = 0;
+  }
   return {
     enabled: s.enabled,
     connected,
     model: s.model,
-    suggestionCount: 0, // populated per-tab; popup shows static 0 here.
+    suggestionCount,
   };
 }
 
@@ -328,20 +391,15 @@ async function handleGetModels(): Promise<{ ok: boolean; models?: string[]; erro
   }
 }
 
-async function handlePauseSite(tabId: number, paused: boolean): Promise<void> {
-  if (tabId < 0) return;
-  // NOTE: static import on purpose — dynamic import() in an MV3 service
-  // worker pulls in Vite's preload helper, which references `window` and
-  // crashes the worker ("window is not defined").
-  await setTabPaused(tabId, paused);
+async function handlePauseSite(host: string, paused: boolean): Promise<void> {
+  if (!host) return;
+  await setHostPaused(host, paused);
 }
 
 async function handleSiteExclusion(
   action: "add" | "remove",
   host: string,
 ): Promise<void> {
-  // Static import — see handlePauseSite for why dynamic import() is unsafe
-  // in the service worker context.
   if (action === "add") await addSiteExclusion(host);
   else await removeSiteExclusion(host);
 }
@@ -379,14 +437,37 @@ async function handleSidePanelTone(
  * only the service worker can — so the content script's suggestion engine
  * sends a runtime message to the SW, which calls sendNative() and
  * returns the result.
+ *
+ * Guards (the SW is the security boundary between page content and the
+ * native host):
+ *  1. sender identity — only this extension's own content scripts may
+ *     use the bridge (sender.id must equal chrome.runtime.id);
+ *  2. command allowlist — exactly the six documented NativeCommand values;
+ *  3. payload size cap — the serialized envelope must stay within
+ *     LIMITS.maxRequestBytes (1 MiB), mirroring the host-side frame cap.
  */
 async function handleNativeBridgeCall(
-  command: string,
-  payload: unknown,
+  msg: { command?: unknown; payload?: unknown },
+  sender: chrome.runtime.MessageSender,
 ): Promise<NativeResponse> {
+  if (sender.id !== chrome.runtime.id) {
+    return { ok: false, errorCode: "PERMISSION_ERROR", error: "bridge call from unknown sender" };
+  }
+  const command = typeof msg.command === "string" ? msg.command : "";
+  if (!BRIDGE_ALLOWED_COMMANDS.has(command)) {
+    return { ok: false, errorCode: "PERMISSION_ERROR", error: `command not allowed: ${command}` };
+  }
+  let envelopeSize = 0;
   try {
-    const resp = await sendNative(command as NativeRequest["command"], payload);
-    return resp;
+    envelopeSize = JSON.stringify({ command, payload: msg.payload }).length;
+  } catch {
+    return { ok: false, errorCode: "REQUEST_TOO_LARGE", error: "payload not serializable" };
+  }
+  if (envelopeSize > LIMITS.maxRequestBytes) {
+    return { ok: false, errorCode: "REQUEST_TOO_LARGE", error: "payload exceeds size cap" };
+  }
+  try {
+    return await sendNative(command as NativeRequest["command"], msg.payload);
   } catch (e: unknown) {
     const err = e as Error;
     return {

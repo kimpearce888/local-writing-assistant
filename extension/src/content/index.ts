@@ -18,8 +18,14 @@ import { EditorAdapter } from "./adapters/adapter";
 import { HighlightLayer } from "./highlight-layer";
 import { SuggestionPopup } from "./suggestion-popup";
 import { SuggestionEngine, TaggedIssue } from "./suggestion-engine";
-import { isSiteExcluded, isHostPaused, getSettings } from "../shared/storage";
+import {
+  appendDiagnostic,
+  isSiteExcluded,
+  isHostPaused,
+  getSettings,
+} from "../shared/storage";
 import { hashText } from "../shared/text-utils";
+import { t } from "../shared/i18n";
 
 interface EditorEntry {
   adapter: EditorAdapter;
@@ -124,7 +130,10 @@ function onBlur(el: HTMLElement, cb: () => void): () => void {
 
 /** Per-editor debounced analysis. The previous global debounce timer
  *  meant that typing in editor A then switching to editor B would
- *  reset A's pending analysis and only ever analyze B. */
+ *  reset A's pending analysis and only ever analyze B.
+ *
+ *  The debounce delay honors the user's `debounceMs` setting (100–5000,
+ *  validated/clamped by storage.ts) instead of a hardcoded 700. */
 function scheduleAnalysis(adapter: EditorAdapter): void {
   let entry: EditorEntry | undefined;
   for (const e of editors.values()) {
@@ -135,12 +144,24 @@ function scheduleAnalysis(adapter: EditorAdapter): void {
   }
   if (!entry) return;
   if (entry.debounceTimer) clearTimeout(entry.debounceTimer);
-  entry.debounceTimer = setTimeout(() => {
-    entry!.debounceTimer = null;
-    engine.analyze(adapter).catch(() => {
-      // errors are surfaced through cbs.onAnalyzeError
+  void getSettings()
+    .then((s) => {
+      if (entry.debounceTimer) return; // a newer call already scheduled
+      entry.debounceTimer = setTimeout(() => {
+        entry!.debounceTimer = null;
+        engine.analyze(adapter).catch(() => {
+          // errors are surfaced through cbs.onAnalyzeError
+        });
+      }, s.debounceMs);
+    })
+    .catch(() => {
+      // Storage failure: fall back to the default delay.
+      if (entry.debounceTimer) return;
+      entry.debounceTimer = setTimeout(() => {
+        entry!.debounceTimer = null;
+        engine.analyze(adapter).catch(() => undefined);
+      }, 700);
     });
-  }, 700);
 }
 
 let rescanTimer: ReturnType<typeof setTimeout> | null = null;
@@ -236,7 +257,7 @@ function showStalePopup(): void {
       original: "",
       replacement: "",
       category: "style",
-      explanation: "This suggestion is no longer valid because the text changed.",
+      explanation: t("suggestionStale"),
       confidence: 0,
       editorId: "",
       textHash: "",
@@ -438,6 +459,10 @@ engine = new SuggestionEngine({
       .catch(() => undefined);
   },
   onAnalyzeError: (editorId, code, message) => {
+    // Persist a local diagnostics entry so the options page's
+    // "Recent diagnostics" list reflects real analysis failures
+    // (capped in storage.ts — never contains user text).
+    void appendDiagnostic({ level: "error", code, message }).catch(() => undefined);
     chrome.runtime
       .sendMessage({ type: "status", state: "error", code, message, editorId })
       .catch(() => undefined);
@@ -467,8 +492,21 @@ engine = new SuggestionEngine({
 
   // Watch for dynamically added editors. Debounced so SPAs that fire
   // hundreds of mutations per second don't cripple the page.
-  const observer = new MutationObserver(() => {
-    scheduleRescan();
+  // Mutation batches that contain ONLY the extension's own injected DOM
+  // (every element we create carries a data-lwa-* attribute) are skipped:
+  // re-scanning after our own highlight/popup writes caused pointless
+  // extra work on heavy pages while the user was typing.
+  const observer = new MutationObserver((mutations) => {
+    const relevant = mutations.some((m) => {
+      const nodes = [...m.addedNodes, ...m.removedNodes];
+      return nodes.some((n) => {
+        if (!(n instanceof HTMLElement)) return true; // text nodes etc.
+        return !hasLwaMarker(n) &&
+          !n.querySelector("[data-lwa-popup], [data-lwa-highlight]") &&
+          !isInsideLwa(n);
+      });
+    });
+    if (relevant) scheduleRescan();
   });
   observer.observe(document.documentElement, {
     subtree: true,
@@ -537,6 +575,27 @@ engine = new SuggestionEngine({
     return false;
   });
 
+  // Re-evaluate pause / exclusion state live. Without this, resuming a
+  // paused site required a full page reload because the content script
+  // only consulted chrome.storage.local at boot.
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== "local") return;
+    const pauseKey = "paused:" + location.host;
+    if (!Object.prototype.hasOwnProperty.call(changes, pauseKey) &&
+        !Object.prototype.hasOwnProperty.call(changes, "siteExclusions")) {
+      return;
+    }
+    void (async () => {
+      if (await shouldRunOnSite()) {
+        await rescanPage();
+      } else {
+        for (const entry of editors.values()) entry.detach();
+        editors.clear();
+        popup?.hide();
+      }
+    })();
+  });
+
   // Rescan on focus events (cheap; lets us lazily attach editors).
   document.addEventListener(
     "focusin",
@@ -566,3 +625,22 @@ engine = new SuggestionEngine({
     popup?.hide();
   });
 })();
+
+/** True if the element (or its subtree/ancestor chain) belongs to the
+ *  extension's own injected UI. Every element the extension creates is
+ *  tagged with a data-lwa-* attribute. */
+function isInsideLwa(el: HTMLElement): boolean {
+  let cur: HTMLElement | null = el;
+  while (cur) {
+    if (hasLwaMarker(cur)) return true;
+    cur = cur.parentElement;
+  }
+  return false;
+}
+
+function hasLwaMarker(el: HTMLElement): boolean {
+  for (const attr of Array.from(el.attributes)) {
+    if (attr.name.startsWith("data-lwa-")) return true;
+  }
+  return false;
+}

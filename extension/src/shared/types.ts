@@ -180,7 +180,6 @@ export interface ExtensionSettings {
   tone: ToneMode;
   // Performance
   debounceMs: number;
-  contextLength: number;
   maxTextSize: number;
   maxConcurrent: number;
   minConfidence: number;
@@ -190,10 +189,6 @@ export interface ExtensionSettings {
   temperature: number;
   maxTokens: number;
   requestTimeoutMs: number;
-  // Optional LM Studio bearer token (only sent to 127.0.0.1).
-  lmStudioToken?: string;
-  // Privacy / data
-  storeHistoryLocally: boolean;
 }
 
 export const DEFAULT_SETTINGS: ExtensionSettings = {
@@ -207,7 +202,6 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   checkWordChoice: true,
   tone: "neutral",
   debounceMs: 700,
-  contextLength: 600,
   maxTextSize: 4000,
   maxConcurrent: 2,
   minConfidence: 0.55,
@@ -216,7 +210,6 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   temperature: 0.1,
   maxTokens: 1024,
   requestTimeoutMs: 30000,
-  storeHistoryLocally: false,
 };
 
 /** Native messaging host name (must match manifest + registry). */
@@ -224,7 +217,9 @@ export const NATIVE_HOST_NAME = "com.localwritingassistant.host";
 
 /** Limits shared between extension and native host. */
 export const LIMITS = {
-  maxRequestBytes: 1024 * 1024, // 1 MiB envelope cap on the extension side
+  /** 1 MiB envelope cap enforced by the service worker before sendNative. */
+  maxRequestBytes: 1024 * 1024,
+  /** UTF-8 byte cap for analyzed/rewritten text — MUST match the host clamp. */
   maxAnalyzeTextBytes: 8000,
   maxRewriteTextBytes: 8000,
   maxModelsListed: 200,

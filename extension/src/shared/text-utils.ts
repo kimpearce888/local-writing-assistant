@@ -47,3 +47,52 @@ export function contextWindow(
 export function normalizeText(input: string): string {
   return input.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "");
 }
+
+/**
+ * Truncate a string so its UTF-8 encoding is at most `maxBytes` bytes,
+ * cutting at a UTF-16 code-unit boundary that never splits a surrogate
+ * pair. The native host clamps payloads to a UTF-8 byte limit, so the
+ * extension must measure in the SAME unit — truncating by UTF-16 chars
+ * silently sends non-ASCII text that the host then byte-clamps, and the
+ * returned offsets no longer line up with the text the UI validated.
+ */
+export function truncateToUtf8Bytes(
+  text: string,
+  maxBytes: number,
+): { text: string; truncated: boolean } {
+  if (maxBytes < 0) return { text: "", truncated: text.length > 0 };
+  let bytes = 0;
+  let end = 0; // UTF-16 index after the last fully-included char
+  for (let i = 0; i < text.length; ) {
+    const code = text.charCodeAt(i);
+    let charBytes: number;
+    let units: number;
+    if (code >= 0xd800 && code <= 0xdbff && i + 1 < text.length) {
+      const lo = text.charCodeAt(i + 1);
+      if (lo >= 0xdc00 && lo <= 0xdfff) {
+        charBytes = 4; // surrogate pair → one astral code point
+        units = 2;
+      } else {
+        charBytes = 3; // unpaired high surrogate → U+FFFD on encode
+        units = 1;
+      }
+    } else if (code >= 0xdc00 && code <= 0xdfff) {
+      charBytes = 3; // unpaired low surrogate → U+FFFD on encode
+      units = 1;
+    } else if (code < 0x80) {
+      charBytes = 1;
+      units = 1;
+    } else if (code < 0x800) {
+      charBytes = 2;
+      units = 1;
+    } else {
+      charBytes = 3;
+      units = 1;
+    }
+    if (bytes + charBytes > maxBytes) break;
+    bytes += charBytes;
+    i += units;
+    end = i;
+  }
+  return { text: text.slice(0, end), truncated: end < text.length };
+}

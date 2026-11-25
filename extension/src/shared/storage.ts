@@ -11,6 +11,7 @@ import {
   DEFAULT_SETTINGS,
   ExtensionSettings,
   NATIVE_HOST_NAME,
+  ToneMode,
 } from "./types";
 
 const KEY_SETTINGS = "settings";
@@ -19,25 +20,129 @@ const KEY_EXCLUSIONS = "siteExclusions";
 const KEY_IGNORED_WORDS = "ignoredWords";
 const KEY_IGNORED_SUGGESTIONS = "ignoredSuggestions";
 const KEY_DIAGNOSTICS = "diagnostics";
-const KEY_EXT_ID = "extensionId";
 
-/** Returns a Promise that resolves once storage is ready. */
-export async function ensureStorageReady(): Promise<void> {
-  // chrome.storage.local is always ready in MV3, but await ensures ordering.
-  await chrome.storage.local.get(null);
+const TONE_VALUES: ReadonlySet<string> = new Set<ToneMode>([
+  "neutral", "professional", "friendly", "formal", "casual", "concise",
+  "confident", "anticipatory", "assertive", "compassionate", "constructive",
+  "cooperative", "diplomatic", "empathetic", "inspirational", "exciting",
+  "engaging", "persuasive", "direct",
+]);
+
+function clampInt(v: unknown, min: number, max: number, fallback: number): number {
+  const n = typeof v === "number" ? v : typeof v === "string" && v.trim() !== "" ? Number(v) : NaN;
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(max, Math.max(min, Math.round(n)));
+}
+
+function clampFloat(v: unknown, min: number, max: number, fallback: number): number {
+  const n = typeof v === "number" ? v : typeof v === "string" && v.trim() !== "" ? Number(v) : NaN;
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(max, Math.max(min, n));
+}
+
+function coerceBool(v: unknown, fallback: boolean): boolean {
+  return typeof v === "boolean" ? v : fallback;
+}
+
+function coerceString(v: unknown, fallback: string): string {
+  return typeof v === "string" ? v : fallback;
+}
+
+function isValidLmStudioUrl(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return u.protocol === "http:" || u.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Coerce an untrusted partial-settings object (message from the popup,
+ * settings-import file) into a safe Partial<ExtensionSettings>:
+ * unknown keys are dropped, booleans/numbers are type-checked, numeric
+ * fields are clamped to their UI ranges, `tone` must be a known ToneMode,
+ * and lmStudioUrl must be a valid http(s) URL. Prevents persisted garbage
+ * (e.g. enabled: "yes", temperature: "abc", maxTextSize: -999999) from
+ * silently corrupting runtime behavior.
+ */
+export function validateSettings(
+  partial: unknown,
+): Partial<ExtensionSettings> {
+  if (typeof partial !== "object" || partial === null || Array.isArray(partial)) {
+    return {};
+  }
+  const p = partial as Record<string, unknown>;
+  const out: Partial<ExtensionSettings> = {};
+  for (const key of Object.keys(DEFAULT_SETTINGS) as Array<keyof ExtensionSettings>) {
+    if (!(key in p)) continue;
+    const v = p[key as string];
+    switch (key) {
+      case "enabled":
+      case "autoCheck":
+      case "inlineSuggestions":
+      case "checkSpelling":
+      case "checkGrammar":
+      case "checkPunctuation":
+      case "checkClarity":
+      case "checkWordChoice":
+        (out[key] as boolean) = coerceBool(v, DEFAULT_SETTINGS[key]);
+        break;
+      case "tone":
+        if (typeof v === "string" && TONE_VALUES.has(v)) {
+          out.tone = v as ToneMode;
+        }
+        break;
+      case "debounceMs":
+        out.debounceMs = clampInt(v, 100, 5000, DEFAULT_SETTINGS.debounceMs);
+        break;
+      case "maxTextSize":
+        out.maxTextSize = clampInt(v, 100, 100000, DEFAULT_SETTINGS.maxTextSize);
+        break;
+      case "maxConcurrent":
+        out.maxConcurrent = clampInt(v, 1, 8, DEFAULT_SETTINGS.maxConcurrent);
+        break;
+      case "minConfidence":
+        out.minConfidence = clampFloat(v, 0, 1, DEFAULT_SETTINGS.minConfidence);
+        break;
+      case "temperature":
+        out.temperature = clampFloat(v, 0, 2, DEFAULT_SETTINGS.temperature);
+        break;
+      case "maxTokens":
+        out.maxTokens = clampInt(v, 1, 8192, DEFAULT_SETTINGS.maxTokens);
+        break;
+      case "requestTimeoutMs":
+        out.requestTimeoutMs = clampInt(v, 1000, 120000, DEFAULT_SETTINGS.requestTimeoutMs);
+        break;
+      case "lmStudioUrl": {
+        const s = coerceString(v, DEFAULT_SETTINGS.lmStudioUrl);
+        if (isValidLmStudioUrl(s)) out.lmStudioUrl = s;
+        break;
+      }
+      case "model":
+        out.model = coerceString(v, DEFAULT_SETTINGS.model).slice(0, 200);
+        break;
+    }
+  }
+  return out;
 }
 
 export async function getSettings(): Promise<ExtensionSettings> {
   const raw = await chrome.storage.local.get(KEY_SETTINGS);
-  const partial = (raw[KEY_SETTINGS] ?? {}) as Partial<ExtensionSettings>;
-  return { ...DEFAULT_SETTINGS, ...partial };
+  const partial = (raw[KEY_SETTINGS] ?? {}) as Record<string, unknown>;
+  // Validate on read: unknown/stale keys (e.g. fields removed in later
+  // versions, or values written before validation existed) are dropped,
+  // and every value is coerced to its declared type. This also keeps the
+  // settings-export path honest — removed secret fields can never leak
+  // back out through getSettings().
+  return { ...DEFAULT_SETTINGS, ...validateSettings(partial) };
 }
 
 export async function saveSettings(
   settings: Partial<ExtensionSettings>,
 ): Promise<ExtensionSettings> {
   const current = await getSettings();
-  const next: ExtensionSettings = { ...current, ...settings };
+  const next: ExtensionSettings = { ...current, ...validateSettings(settings) };
   await chrome.storage.local.set({ [KEY_SETTINGS]: next });
   return next;
 }
@@ -205,14 +310,9 @@ export async function clearDiagnostics(): Promise<void> {
  * the host (so pausing slack.com applies to all Slack tabs, which
  * is what users actually want). chrome.storage.local IS readable
  * from content scripts in every Chrome variant. Pause persists
- * across browser restarts — that's actually desirable behavior
- * for "I don't want suggestions on this site" (the user can
- * unpause explicitly via the per-site exclusion list).
- *
- * Pause keys are capped by the natural cap of how many hosts a user
- * would ever pause (typically a few dozen). If the user pauses
- * hundreds of hosts, they can clear pause state via the
- * options page's "Reset settings" button.
+ * across browser restarts by design; the popup exposes an explicit
+ * "Resume on this site" action, and the content script re-evaluates
+ * pause state live via storage.onChanged.
  */
 
 const PAUSE_KEY_PREFIX = "paused:";
@@ -234,39 +334,6 @@ export async function isHostPaused(host: string): Promise<boolean> {
   const key = PAUSE_KEY_PREFIX + h;
   const res = await chrome.storage.local.get(key);
   return res[key] === true;
-}
-
-// Legacy in-memory API kept for backward compat with old callers, but
-// it now proxies to the local-store-backed version above. The old
-// signatures took a tabId; we re-route them through the host-based
-// store via a lookup of the tab's URL host.
-export async function setTabPaused(tabId: number, paused: boolean): Promise<void> {
-  try {
-    const tab = await chrome.tabs.get(tabId);
-    if (!tab?.url) return;
-    const host = new URL(tab.url).host;
-    await setHostPaused(host, paused);
-  } catch {
-    // tabId is invalid or no permission — ignore.
-  }
-}
-
-export async function isTabPaused(_tabId: number): Promise<boolean> {
-  // Kept for API compat but content scripts should call isHostPaused
-  // directly with location.host. We return false because we cannot
-  // reliably map a tabId to a host from a content-script context.
-  return false;
-}
-
-/* ---------------- Cached extension id (set by installer) ---------------- */
-
-export async function getCachedExtensionId(): Promise<string | null> {
-  const raw = await chrome.storage.local.get(KEY_EXT_ID);
-  return (raw[KEY_EXT_ID] as string) ?? null;
-}
-
-export async function setCachedExtensionId(id: string): Promise<void> {
-  await chrome.storage.local.set({ [KEY_EXT_ID]: id });
 }
 
 export { NATIVE_HOST_NAME };

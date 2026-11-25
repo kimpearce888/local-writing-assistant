@@ -21,6 +21,20 @@ async function refreshStatus(): Promise<void> {
     : "○ Not connected";
   ($("modelValue") as HTMLElement).textContent = status.model || "—";
   ($("suggestionsValue") as HTMLElement).textContent = String(status.suggestionCount ?? 0);
+  // Reflect the current site's pause state on the pause/resume buttons.
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tab?.url) {
+      const host = new URL(tab.url).host;
+      const key = "paused:" + host;
+      const stored = await chrome.storage.local.get(key);
+      const paused = stored[key] === true;
+      ($("pauseSiteBtn") as HTMLButtonElement).disabled = paused;
+      ($("resumeSiteBtn") as HTMLButtonElement).disabled = !paused;
+    }
+  } catch {
+    // activeTab not granted — leave buttons enabled.
+  }
 }
 
 function hookActions(): void {
@@ -71,8 +85,18 @@ function hookActions(): void {
   });
   ($("pauseSiteBtn") as HTMLElement).addEventListener("click", async () => {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (tab?.id) {
-      await chrome.runtime.sendMessage({ type: "popup-pause-site", paused: true, tabId: tab.id });
+    if (tab?.url) {
+      const host = new URL(tab.url).host;
+      await chrome.runtime.sendMessage({ type: "popup-pause-site", paused: true, host });
+      await refreshStatus();
+    }
+  });
+  ($("resumeSiteBtn") as HTMLElement).addEventListener("click", async () => {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tab?.url) {
+      const host = new URL(tab.url).host;
+      await chrome.runtime.sendMessage({ type: "popup-pause-site", paused: false, host });
+      await refreshStatus();
     }
   });
 }

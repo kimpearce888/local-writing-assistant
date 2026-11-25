@@ -22,6 +22,7 @@ import {
   resetSettings,
   saveSettings,
   setDictionary,
+  validateSettings,
 } from "../shared/storage";
 
 const $ = (id: string) => document.getElementById(id) as HTMLElement | null;
@@ -38,7 +39,6 @@ async function loadSettingsToUI(): Promise<void> {
   setCheck("checkWordChoice", s.checkWordChoice);
   setValue("tone", s.tone);
   setNumber("debounceMs", s.debounceMs);
-  setNumber("contextLength", s.contextLength);
   setNumber("maxTextSize", s.maxTextSize);
   setNumber("maxConcurrent", s.maxConcurrent);
   setNumber("minConfidence", s.minConfidence);
@@ -92,7 +92,6 @@ async function gatherSettingsFromUI(): Promise<ExtensionSettings> {
     checkWordChoice: readBool("checkWordChoice"),
     tone: readStr("tone") as ExtensionSettings["tone"],
     debounceMs: readNumber("debounceMs", DEFAULT_SETTINGS.debounceMs),
-    contextLength: readNumber("contextLength", DEFAULT_SETTINGS.contextLength),
     maxTextSize: readNumber("maxTextSize", DEFAULT_SETTINGS.maxTextSize),
     maxConcurrent: readNumber("maxConcurrent", DEFAULT_SETTINGS.maxConcurrent),
     minConfidence: readNumber("minConfidence", DEFAULT_SETTINGS.minConfidence),
@@ -274,30 +273,16 @@ function hookControls(): void {
           alert("Import failed: file is not a JSON object.");
           return;
         }
-        // Allow only known settings fields. Previously saveSettings did
-        // {...current, ...obj} which would persist any extra fields the
-        // user (or a malicious file) included — bad data hygiene.
-        // We allowlist the known fields and discard the rest.
-        const allowed: ReadonlyArray<keyof ExtensionSettings> = [
-          "enabled", "autoCheck", "inlineSuggestions",
-          "checkSpelling", "checkGrammar", "checkPunctuation",
-          "checkClarity", "checkWordChoice",
-          "tone", "debounceMs", "contextLength", "maxTextSize",
-          "maxConcurrent", "minConfidence",
-          "lmStudioUrl", "model", "temperature", "maxTokens",
-          "requestTimeoutMs", "lmStudioToken", "storeHistoryLocally",
-        ];
-        const cleaned: Record<string, unknown> = {};
-        for (const key of allowed) {
-          if (key in parsed) {
-            cleaned[key] = parsed[key];
-          }
-        }
+        // Allow only known settings fields, then pass the result through
+        // validateSettings so every VALUE is type-checked and clamped too
+        // (e.g. enabled: "yes", temperature: "abc", or maxTextSize: -999999
+        // from a hand-edited file must never reach storage).
+        const cleaned = validateSettings(parsed);
         if (Object.keys(cleaned).length === 0) {
           alert("Import failed: no recognized settings fields in file.");
           return;
         }
-        await saveSettings(cleaned as Partial<ExtensionSettings>);
+        await saveSettings(cleaned);
         await loadSettingsToUI();
       } catch (e) {
         alert(`Import failed: ${(e as Error).message || "invalid JSON"}`);
