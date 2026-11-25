@@ -45,10 +45,7 @@ func New(baseURL, token string) (*Client, error) {
 				if !isLoopbackHost(host) {
 					return nil, fmt.Errorf("refusing non-local host: %s", host)
 				}
-				ip = net.ParseIP("127.0.0.1")
-				if ip == nil {
-					ip = net.IPv4(127, 0, 0, 1)
-				}
+				ip = net.IPv4(127, 0, 0, 1)
 			}
 			if !ip.IsLoopback() {
 				return nil, fmt.Errorf("refusing non-local ip: %s", ip)
@@ -57,6 +54,12 @@ func New(baseURL, token string) (*Client, error) {
 		},
 		// No proxy — we don't want to accidentally tunnel.
 		Proxy: nil,
+		// Belt-and-braces timeouts: the per-request context caps
+		// total duration, but keep-alive connections must not sit
+		// idle forever and TLS/header stalls need their own bounds.
+		TLSHandshakeTimeout:   5 * time.Second,
+		ResponseHeaderTimeout: 30 * time.Second,
+		IdleConnTimeout:       30 * time.Second,
 	}
 	return &Client{
 		baseURL: clean,
@@ -64,6 +67,21 @@ func New(baseURL, token string) (*Client, error) {
 			Transport: transport,
 			// We use context per-request for timeout control.
 			Timeout: 0,
+			// The loopback dialer re-checks every redirect hop,
+			// but do not FOLLOW cross-host redirects at all: a
+			// same-machine redirect to a different port would
+			// otherwise replay the Authorization header at an
+			// endpoint the user did not configure.
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				if len(via) >= 10 {
+					return fmt.Errorf("stopped after 10 redirects")
+				}
+				if req.URL != nil && via[0].URL != nil &&
+					req.URL.Hostname() != via[0].URL.Hostname() {
+					return fmt.Errorf("refusing cross-host redirect to %s", req.URL.Host)
+				}
+				return nil
+			},
 		},
 		token: token,
 	}, nil
@@ -139,8 +157,16 @@ func (c *Client) ChatCompletion(ctx context.Context, req *ChatRequest) (string, 
 	if req.Temperature < 0 {
 		req.Temperature = 0
 	}
+	if req.Temperature > 2 {
+		// Extension-controlled values pass through unvalidated; clamp
+		// absurd inputs instead of forwarding them to LM Studio.
+		req.Temperature = 2
+	}
 	if req.MaxTokens <= 0 {
 		req.MaxTokens = 1024
+	}
+	if req.MaxTokens > 8192 {
+		req.MaxTokens = 8192
 	}
 	req.Stream = false
 	body, err := json.Marshal(req)

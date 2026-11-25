@@ -25,6 +25,18 @@ func TestSanitizeLMStudioURL_Rejects(t *testing.T) {
 		"ftp://127.0.0.1:1234",            // non-http scheme
 		"http://user:pass@127.0.0.1:1234", // userinfo
 		"",
+		// Adversarial encodings that must all fail closed (audit GO-207):
+		"http://2130706433:1234",            // decimal IP for 127.0.0.1
+		"http://0x7f000001:1234",            // hex IP
+		"http://0x7f.0.0.1:1234",            // mixed hex octet
+		"http://0177.0.0.1:1234",            // octal octet
+		"http://127.1:1234",                 // short form
+		"http://[::1%25eth0]:1234",          // IPv6 zone id
+		"http://localhost.evil.com:1234",    // prefix-lookalike hostname
+		"http://evil.com:1234/?u=127.0.0.1", // loopback only in query
+		"http://127.0.0.1@evil.com:1234",    // userinfo trick
+		"http://localhost.:1234",            // trailing dot
+		"HTTP\\://127.0.0.1:1234",           // malformed scheme
 	}
 	for _, raw := range cases {
 		// Empty string is allowed (defaults to 127.0.0.1).

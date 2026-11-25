@@ -304,7 +304,7 @@ func callWithEnv(t *testing.T, binary string, req *Request, env map[string]strin
 		t.Fatalf("marshal request: %v", err)
 	}
 	var input bytes.Buffer
-	_ = binenc.Write(&input, binenc.LittleEndian, uint32(len(body)))
+	_ = binenc.Write(&input, binenc.NativeEndian, uint32(len(body)))
 	input.Write(body)
 	cmd := exec.Command(binary)
 	cmd.Stdin = &input
@@ -331,7 +331,7 @@ func callWithEnv(t *testing.T, binary string, req *Request, env map[string]strin
 		t.Fatalf("run host: %v", err)
 	}
 	var length uint32
-	if err := binenc.Read(&stdout, binenc.LittleEndian, &length); err != nil {
+	if err := binenc.Read(&stdout, binenc.NativeEndian, &length); err != nil {
 		t.Fatalf("read length: %v", err)
 	}
 	respBytes := make([]byte, length)

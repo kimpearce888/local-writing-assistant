@@ -41,7 +41,7 @@ type Response struct {
 // it. Returns an error if the message is missing, oversized, or malformed.
 func ReadRequest(r io.Reader) (*Request, error) {
 	var length uint32
-	if err := binary.Read(r, binary.LittleEndian, &length); err != nil {
+	if err := binary.Read(r, binary.NativeEndian, &length); err != nil {
 		if errors.Is(err, io.EOF) {
 			return nil, io.EOF
 		}
@@ -85,7 +85,7 @@ func WriteResponse(w io.Writer, resp *Response) error {
 			Error:     "response too large",
 		})
 	}
-	if err := binary.Write(w, binary.LittleEndian, uint32(len(body))); err != nil {
+	if err := binary.Write(w, binary.NativeEndian, uint32(len(body))); err != nil {
 		return err
 	}
 	if _, err := w.Write(body); err != nil {

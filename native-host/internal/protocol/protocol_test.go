@@ -16,7 +16,7 @@ func TestWriteThenReadRoundTrip(t *testing.T) {
 	}
 	// Read length back.
 	var length uint32
-	if err := binary.Read(&buf, binary.LittleEndian, &length); err != nil {
+	if err := binary.Read(&buf, binary.NativeEndian, &length); err != nil {
 		t.Fatalf("read length: %v", err)
 	}
 	body := make([]byte, length)
@@ -35,7 +35,7 @@ func TestWriteThenReadRoundTrip(t *testing.T) {
 func TestReadRequestRejectsOversized(t *testing.T) {
 	var buf bytes.Buffer
 	// Write a fake length that exceeds MaxMessageBytes.
-	_ = binary.Write(&buf, binary.LittleEndian, uint32(MaxMessageBytes+1))
+	_ = binary.Write(&buf, binary.NativeEndian, uint32(MaxMessageBytes+1))
 	_, err := ReadRequest(&buf)
 	if err == nil {
 		t.Fatalf("expected error for oversized message")
@@ -48,7 +48,7 @@ func TestReadRequestRejectsOversized(t *testing.T) {
 func TestReadRequestRejectsMalformed(t *testing.T) {
 	var buf bytes.Buffer
 	body := []byte("{not valid json")
-	_ = binary.Write(&buf, binary.LittleEndian, uint32(len(body)))
+	_ = binary.Write(&buf, binary.NativeEndian, uint32(len(body)))
 	buf.Write(body)
 	_, err := ReadRequest(&buf)
 	if err == nil {

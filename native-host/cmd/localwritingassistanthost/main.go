@@ -36,6 +36,14 @@ type HostConfig struct {
 }
 
 func main() {
+	// Diagnostics: support --version for the Linux diagnose script.
+	// Chrome never passes command-line arguments when launching a
+	// native-messaging host, so this cannot collide with the real
+	// protocol flow.
+	if len(os.Args) > 1 && os.Args[1] == "--version" {
+		fmt.Printf("local-writing-assistant-host %s\n", hostVersion())
+		return
+	}
 	if err := run(os.Stdin, os.Stdout); err != nil && !errors.Is(err, io.EOF) {
 		logging.Error("HOST_FATAL", err.Error())
 		os.Exit(1)
@@ -43,9 +51,16 @@ func main() {
 }
 
 func run(in io.Reader, out io.Writer) error {
-	// Read config from %LOCALAPPDATA%\LocalWritingAssistant\host-config.json
-	// if present; otherwise default to http://127.0.0.1:1234.
+	// Read optional config (see loadConfig): <exe>.config.json next to
+	// the binary, then ~/.local-writing-assistant/host-config.json.
+	// Neither is required — the default is http://127.0.0.1:1234.
 	cfg := loadConfig()
+	if mock.Enabled() {
+		// Make silent mock mode visible: LOCAL_MOCK_AI=true replaces
+		// every real AI result with canned responses, which previously
+		// looked like a "broken LM Studio" to anyone debugging.
+		logging.Warn("MOCK_MODE", "LOCAL_MOCK_AI=true — all AI responses are canned mock output, not real model results")
+	}
 	for {
 		req, err := protocol.ReadRequest(in)
 		if err != nil {
@@ -122,6 +137,9 @@ func handleRequest(req *protocol.Request, cfg HostConfig, out io.Writer) {
 		}
 		handleRewrite(req, rid, cfg, out)
 	default:
+		// Defense in depth only: IsAllowedCommand above already
+		// returns UNKNOWN_COMMAND for anything not in the allowlist,
+		// so this branch is unreachable today.
 		writeErr(out, rid, "UNKNOWN_COMMAND", req.Command)
 	}
 }
@@ -169,7 +187,10 @@ func handleCheckConnection(req *protocol.Request, rid string, cfg HostConfig, ou
 		writeOK(out, rid, result)
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
+	// One parent budget for the whole check (models list + optional
+	// ping). Previously each call used an independent fresh timeout,
+	// so a slow server could make check_connection take ~32s.
+	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
 	defer cancel()
 	models, err := client.ListModels(ctx)
 	if err != nil {
@@ -189,7 +210,7 @@ func handleCheckConnection(req *protocol.Request, rid string, cfg HostConfig, ou
 		}
 		result["models"] = modelList
 		// Only do a full ping if a model is available.
-		pingCtx, pingCancel := context.WithTimeout(context.Background(), 20*time.Second)
+		pingCtx, pingCancel := context.WithTimeout(ctx, 10*time.Second)
 		defer pingCancel()
 		if err := client.Ping(pingCtx, models[0].ID); err != nil {
 			result["message"] = fmt.Sprintf("test request failed: %v", err)
@@ -437,7 +458,8 @@ func writeErr(w io.Writer, rid, code, message string) {
 }
 
 func hostVersion() string {
-	return "1.5.1"
+	// Keep in sync with manifest.json / package.json / CHANGELOG.md.
+	return "1.7.1"
 }
 
 // loadConfig reads the optional host-config.json next to the executable
@@ -457,11 +479,16 @@ func loadConfig() HostConfig {
 				if c.BaseURL != "" {
 					cfg.BaseURL = c.BaseURL
 				}
-				cfg.Token = c.Token
+				if c.Token != "" {
+					cfg.Token = c.Token
+				}
 			}
 		}
 	}
-	// Also honor the conventional user-data location.
+	// Also honor the conventional user-data location. Both fields use
+	// the same non-empty guard so an incomplete home config cannot
+	// erase an exe-config value (previously an empty token here
+	// silently cleared the token set by <exe>.config.json).
 	if home, err := os.UserHomeDir(); err == nil {
 		path := home + string(os.PathSeparator) + ".local-writing-assistant" + string(os.PathSeparator) + "host-config.json"
 		if b, err := os.ReadFile(path); err == nil {
@@ -470,7 +497,9 @@ func loadConfig() HostConfig {
 				if c.BaseURL != "" {
 					cfg.BaseURL = c.BaseURL
 				}
-				cfg.Token = c.Token
+				if c.Token != "" {
+					cfg.Token = c.Token
+				}
 			}
 		}
 	}
