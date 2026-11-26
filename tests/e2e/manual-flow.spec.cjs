@@ -173,7 +173,9 @@ test.describe("Manual user-flow tests", () => {
 
       // Run a mock rewrite. The action menu is rendered from the
       // CATEGORIES table in sidepanel.js, so target the "Improve it"
-      // button by its label inside #actionMenu.
+      // button by its label inside #actionMenu. v1.8.0 moved the menu
+      // into the "Rewrite & Write" tab — switch there first.
+      await sidePanel.locator('#tab-actions').click();
       await sidePanel.locator('#actionMenu .action-item:has-text("Improve it")').click();
       // Wait for the result text to populate (mock returns instantly
       // but chrome.runtime.sendMessage round-trip takes a moment).

@@ -70,6 +70,9 @@ test.describe("User-reported flows", () => {
       await box.type("She don't like the way this is going.");
 
       // Run a rewrite directly on panel-written text.
+      // v1.8.0 moved the action menu into the "Rewrite & Write" tab —
+      // switch there first, exactly like a real user would.
+      await panel.locator('#tab-actions').click();
       await panel.locator('#actionMenu .action-item:has-text("Improve it")').click();
       await expect
         .poll(async () => await panel.locator("#resultText").inputValue(), {
