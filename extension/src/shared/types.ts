@@ -69,6 +69,7 @@ export interface GrammarCheckResponse {
 export type RewriteOperation =
   // Core rewrite actions
   | "improve"
+  | "continue"
   | "shorter"
   | "clearer"
   | "professional"
@@ -167,6 +168,33 @@ export interface ConnectionCheckResult {
   message?: string;
 }
 
+/** English dialect goal (Grammarly-parity: US/UK/CA/AU). */
+export type Dialect = "us" | "uk" | "ca" | "au";
+
+/** Audience goal — tunes how much jargon the checker tolerates. */
+export type Audience = "general" | "knowledgeable" | "expert";
+
+/** Formality goal — tunes how strict tone/style suggestions are. */
+export type GoalFormality = "informal" | "neutral" | "formal";
+
+/** Domain goal — tunes style strictness per document type. */
+export type Domain = "general" | "academic" | "business" | "email" | "casual" | "creative";
+
+/** Goals the user sets once and that shape every check + rewrite. */
+export interface WritingGoals {
+  dialect: Dialect;
+  audience: Audience;
+  formality: GoalFormality;
+  domain: Domain;
+}
+
+export const DEFAULT_GOALS: WritingGoals = {
+  dialect: "us",
+  audience: "general",
+  formality: "neutral",
+  domain: "general",
+};
+
 /** Persisted settings stored in chrome.storage.local. */
 export interface ExtensionSettings {
   enabled: boolean;
@@ -178,6 +206,16 @@ export interface ExtensionSettings {
   checkClarity: boolean;
   checkWordChoice: boolean;
   tone: ToneMode;
+  // Writing goals (Grammarly parity)
+  dialect: Dialect;
+  audience: Audience;
+  formality: GoalFormality;
+  domain: Domain;
+  // UX surface
+  showFloatingWidget: boolean;
+  hoverSuggestions: boolean;
+  doubleClickSynonyms: boolean;
+  autoToneDetect: boolean;
   // Performance
   debounceMs: number;
   maxTextSize: number;
@@ -201,6 +239,14 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   checkClarity: true,
   checkWordChoice: true,
   tone: "neutral",
+  dialect: "us",
+  audience: "general",
+  formality: "neutral",
+  domain: "general",
+  showFloatingWidget: true,
+  hoverSuggestions: true,
+  doubleClickSynonyms: true,
+  autoToneDetect: true,
   debounceMs: 700,
   maxTextSize: 4000,
   maxConcurrent: 2,
@@ -224,3 +270,63 @@ export const LIMITS = {
   maxRewriteTextBytes: 8000,
   maxModelsListed: 200,
 } as const;
+
+/* ---------------- Writing insights (scores, stats, tone) ---------------- */
+
+/**
+ * Deterministic, locally computed text statistics — no LLM round trip.
+ * Mirrors the stats Grammarly shows (word count, readability, …) plus a
+ * few extras (speaking time, vocabulary richness).
+ */
+export interface TextStats {
+  characters: number;
+  words: number;
+  sentences: number;
+  paragraphs: number;
+  uniqueWords: number;
+  /** uniqueWords / words (0–1). */
+  vocabularyRichness: number;
+  avgWordsPerSentence: number;
+  /** Sentences longer than 30 words. */
+  longSentences: number;
+  readingMinutes: number;
+  speakingMinutes: number;
+  /** Flesch Reading Ease, 0–100. */
+  fleschReadingEase: number;
+  /** Flesch–Kincaid grade level. */
+  fleschGrade: number;
+  /** Human label derived from fleschReadingEase. */
+  readabilityLabel: string;
+}
+
+/** One scored dimension of the Grammarly-style performance dashboard. */
+export interface DimensionScore {
+  correctness: number;
+  clarity: number;
+  engagement: number;
+  delivery: number;
+}
+
+/** Full local score breakdown including the weighted overall score. */
+export interface ScoreBreakdown extends DimensionScore {
+  overall: number;
+}
+
+/** A detected tone with its 0–1 strength. */
+export interface ToneReading {
+  tone: string;
+  score: number;
+}
+
+/** Everything the side panel / popup / widget need to display about a
+ *  piece of text, bundled as one serializable object. */
+export interface WritingInsights {
+  editorId: string;
+  stats: TextStats;
+  score: ScoreBreakdown;
+  /** Detected tones (may be empty if never analyzed). */
+  tones: ToneReading[];
+  /** Number of active issues (for badges). */
+  issueCount: number;
+  ts: number;
+}

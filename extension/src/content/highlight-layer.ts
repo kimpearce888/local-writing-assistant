@@ -36,6 +36,8 @@ export class HighlightLayer {
   private markers: MarkerEl[] = [];
   private overlay: HTMLDivElement | null = null;
   private clickHandler: ((e: Event) => void) | null = null;
+  private hoverHandler: ((e: MouseEvent) => void) | null = null;
+  private hoverOutHandler: ((e: MouseEvent) => void) | null = null;
   private scrollResizeHandler: (() => void) | null = null;
   private resizeObserver: ResizeObserver | null = null;
 
@@ -167,6 +169,14 @@ export class HighlightLayer {
       this.overlay?.removeEventListener("click", this.clickHandler);
       this.clickHandler = null;
     }
+    if (this.hoverHandler) {
+      this.overlay?.removeEventListener("mouseover", this.hoverHandler);
+      this.hoverHandler = null;
+    }
+    if (this.hoverOutHandler) {
+      this.overlay?.removeEventListener("mouseout", this.hoverOutHandler);
+      this.hoverOutHandler = null;
+    }
     if (this.scrollResizeHandler) {
       window.removeEventListener("scroll", this.scrollResizeHandler, { capture: true });
       window.removeEventListener("resize", this.scrollResizeHandler);
@@ -203,6 +213,66 @@ export class HighlightLayer {
     return () => {
       overlay.removeEventListener("click", handler);
       if (this.clickHandler === handler) this.clickHandler = null;
+    };
+  }
+
+  /** Attach a hover handler for issue markers. Same contract as onClick:
+   *  any previous handler is removed first and the returned unsubscribe
+   *  MUST be captured by the caller (re-attaching on every re-analysis
+   *  without unsubscribing would stack N callbacks per hover).
+   *
+   *  Implemented with a delegated "mouseover" listener on the overlay
+   *  reading data-issue-id via e.target.closest(). mouseenter does NOT
+   *  bubble, so it cannot be delegated from the overlay; mouseover is
+   *  its bubbling equivalent and markers are leaf elements, so it fires
+   *  exactly once per marker entry. */
+  onHover(cb: (issueId: string) => void): () => void {
+    const overlay = this.ensureOverlay();
+    if (this.hoverHandler) {
+      overlay.removeEventListener("mouseover", this.hoverHandler);
+    }
+    const handler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      const marker = target?.closest("[data-issue-id]") as HTMLElement | null;
+      const id = marker?.getAttribute("data-issue-id");
+      if (id) cb(id);
+    };
+    this.hoverHandler = handler;
+    overlay.addEventListener("mouseover", handler);
+    return () => {
+      overlay.removeEventListener("mouseover", handler);
+      if (this.hoverHandler === handler) this.hoverHandler = null;
+    };
+  }
+
+  /** Attach a hover-END handler. mouseleave does not bubble either — the
+   *  delegated equivalent is "mouseout" with a relatedTarget check: only
+   *  fire when the pointer left the marker entirely (i.e. the element it
+   *  moved to is NOT inside a marker carrying the same issue id). */
+  onHoverEnd(cb: () => void): () => void {
+    const overlay = this.ensureOverlay();
+    if (this.hoverOutHandler) {
+      overlay.removeEventListener("mouseout", this.hoverOutHandler);
+    }
+    const handler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      const marker = target?.closest("[data-issue-id]") as HTMLElement | null;
+      if (!marker) return;
+      const id = marker.getAttribute("data-issue-id");
+      const related = e.relatedTarget as Node | null;
+      if (related && related.nodeType === Node.ELEMENT_NODE) {
+        const toMarker = (related as HTMLElement).closest(
+          "[data-issue-id]",
+        ) as HTMLElement | null;
+        if (toMarker && toMarker.getAttribute("data-issue-id") === id) return;
+      }
+      cb();
+    };
+    this.hoverOutHandler = handler;
+    overlay.addEventListener("mouseout", handler);
+    return () => {
+      overlay.removeEventListener("mouseout", handler);
+      if (this.hoverOutHandler === handler) this.hoverOutHandler = null;
     };
   }
 }

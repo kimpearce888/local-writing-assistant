@@ -15,19 +15,30 @@
 
 import { findEditorAt, getAdapterForElement } from "./adapters";
 import { EditorAdapter } from "./adapters/adapter";
+import { FloatingWidget } from "./floating-widget";
 import { HighlightLayer } from "./highlight-layer";
 import { SuggestionPopup } from "./suggestion-popup";
 import { SuggestionEngine, TaggedIssue } from "./suggestion-engine";
+import { sendNativeViaRelay } from "./relay";
+import { SynonymsCard, requestSynonyms } from "./synonyms";
 import {
   appendDiagnostic,
   isSiteExcluded,
   isHostPaused,
   getSettings,
 } from "../shared/storage";
+import { computeTextStats } from "../shared/analysis";
 import { hashText } from "../shared/text-utils";
 import { t } from "../shared/i18n";
 import { createPerKeyDebouncer } from "../shared/debounce";
-import { ExtensionSettings } from "../shared/types";
+import { computeScoreBreakdown } from "../shared/score";
+import { detectTone } from "../shared/tone";
+import {
+  ExtensionSettings,
+  ScoreBreakdown,
+  TextStats,
+  ToneReading,
+} from "../shared/types";
 
 interface EditorEntry {
   adapter: EditorAdapter;
@@ -37,6 +48,10 @@ interface EditorEntry {
   /** Unsubscribe for the layer's click handler so we don't stack a new
    *  listener on every re-analysis. */
   unsubscribeClick: (() => void) | null;
+  /** Hover wiring (task 3-a) — same lifetime contract as
+   *  unsubscribeClick: replaced on every re-analysis, cleared on detach. */
+  unsubscribeHover: (() => void) | null;
+  unsubscribeHoverEnd: (() => void) | null;
 }
 
 const editors = new Map<HTMLElement, EditorEntry>();
@@ -44,6 +59,20 @@ let popup: SuggestionPopup | null = null;
 let engine: SuggestionEngine;
 let currentEditor: EditorAdapter | null = null;
 const issuesByEditor = new Map<string, TaggedIssue[]>();
+/** Latest tone readings per editor (widget chip + side panel broadcast). */
+const tonesByEditor = new Map<string, ToneReading[]>();
+/** Latest locally computed text stats per editor. */
+const lastStatsByEditor = new Map<string, TextStats>();
+/** Latest score breakdown per editor (widget tooltip). */
+const lastScoreByEditor = new Map<string, ScoreBreakdown>();
+let widget: FloatingWidget | null = null;
+let synonymsCard: SynonymsCard | null = null;
+/** Auto tone detection runs on its own slower debounce, independent of
+ *  the analysis debouncer — a tone round trip is expensive. */
+const toneDebouncer = createPerKeyDebouncer(() => 2500);
+/** Single shared timer for hover show/hide so a new hover event always
+ *  supersedes a pending hide (and vice versa). */
+let hoverTimer: number | undefined;
 
 /** Cache of the validated settings, refreshed at init and on every
  *  chrome.storage.onChanged("settings") event. The debounce path needs
@@ -72,6 +101,69 @@ async function shouldRunOnSite(): Promise<boolean> {
   return true;
 }
 
+/* ---------------- Tone relay + floating widget (task 3-a) ---------------- */
+
+/** Transport shape accepted by shared/detectTone (RelayLike). */
+type ToneRelay = (
+  command: string,
+  payload: unknown,
+  timeoutMs: number,
+) => Promise<{ ok: boolean; errorCode?: string; error?: string; data?: unknown }>;
+
+/** Content scripts cannot reach the native host directly — tone calls are
+ *  forwarded through the service worker's "native-bridge-call" handler. */
+const relayForTone: ToneRelay = (command, payload, timeoutMs) =>
+  sendNativeViaRelay(command, payload, timeoutMs);
+
+function runToneDetection(adapter: EditorAdapter): void {
+  const text = adapter.getText();
+  // Tone on a two-word chat message is noise — gate like the widget chip.
+  if (text.trim().length < 150) {
+    widget?.setTones([]);
+    return;
+  }
+  detectTone(text, relayForTone)
+    .then((tones) => {
+      tonesByEditor.set(adapter.getEditorIdentity(), tones);
+      widget?.setTones(tones);
+      // Re-assert the score too — setTones rebuilds the widget tooltip
+      // and the two states render together.
+      if (widget) {
+        widget.setScore(
+          lastScoreByEditor.get(adapter.getEditorIdentity()) ?? null,
+        );
+      }
+    })
+    .catch(() => undefined);
+}
+
+/** Lazily create the singleton floating widget with its menu callbacks. */
+function ensureWidget(): FloatingWidget {
+  if (!widget) {
+    widget = new FloatingWidget({
+      onOpenPanel: () => {
+        chrome.runtime
+          .sendMessage({ type: "open-side-panel" })
+          .catch(() => undefined);
+      },
+      onCheckNow: () => {
+        if (currentEditor) {
+          void engine.analyze(currentEditor).catch(() => undefined);
+        }
+      },
+      onDetectTone: () => {
+        if (currentEditor) runToneDetection(currentEditor);
+      },
+      onOpenSettings: () => {
+        chrome.runtime
+          .sendMessage({ type: "open-options" })
+          .catch(() => undefined);
+      },
+    });
+  }
+  return widget;
+}
+
 function registerEditor(el: HTMLElement): void {
   if (editors.has(el)) return;
   const adapter = getAdapterForElement(el);
@@ -85,10 +177,18 @@ function registerEditor(el: HTMLElement): void {
   const inputUnsub = adapter.onInput(() => scheduleAnalysis(adapter));
   const focusUnsub = onFocus(el, () => {
     currentEditor = adapter;
+    // Dock the floating widget unless the user turned it off.
+    if (settingsCache?.showFloatingWidget !== false) {
+      ensureWidget().attach(adapter);
+      widget?.setTones(tonesByEditor.get(adapter.getEditorIdentity()) ?? []);
+    }
   });
   const blurUnsub = onBlur(el, () => {
     // Keep the editor reference so highlights can persist; just debounce.
     scheduleAnalysis(adapter);
+    // Hide the widget AFTER scheduling the analysis — issues and
+    // highlights stay alive while the widget is only visually hidden.
+    widget?.hide();
   });
 
   const entry: EditorEntry = {
@@ -100,10 +200,16 @@ function registerEditor(el: HTMLElement): void {
       blurUnsub();
       entry.unsubscribeClick?.();
       entry.unsubscribeClick = null;
+      entry.unsubscribeHover?.();
+      entry.unsubscribeHover = null;
+      entry.unsubscribeHoverEnd?.();
+      entry.unsubscribeHoverEnd = null;
       debouncer.cancel(adapter.getEditorIdentity());
       layer.dispose();
     },
     unsubscribeClick: null,
+    unsubscribeHover: null,
+    unsubscribeHoverEnd: null,
   };
   editors.set(el, entry);
 
@@ -177,6 +283,7 @@ async function rescanPage(): Promise<void> {
   if (!(await shouldRunOnSite())) {
     for (const entry of editors.values()) entry.detach();
     editors.clear();
+    widget?.hide();
     return;
   }
   // Match both contenteditable="true" (explicit value) and bare
@@ -200,6 +307,15 @@ async function rescanPage(): Promise<void> {
 }
 
 function onIssueMarkerClick(editorId: string, issueId: string): void {
+  showSuggestionForIssue(editorId, issueId);
+}
+
+/** Shared by the layer's click handler AND the hover-suggestion timer.
+ *  Skips re-showing when the popup already displays the same issue —
+ *  hover events re-fire constantly and rebuilding the popup every time
+ *  would make it flicker. */
+function showSuggestionForIssue(editorId: string, issueId: string): void {
+  if (popup?.isShowing(issueId)) return;
   const list = issuesByEditor.get(editorId) ?? [];
   const issue = list.find((x) => x.id === issueId);
   if (!issue) return;
@@ -432,6 +548,7 @@ function handleSelectionForRewrite(fallbackToFullEditor = false): void {
 
 engine = new SuggestionEngine({
   onAnalyzeStart: () => {
+    widget?.setChecking(true);
     chrome.runtime.sendMessage({ type: "status", state: "checking" }).catch(() => undefined);
   },
   onAnalyzeComplete: (result) => {
@@ -439,6 +556,40 @@ engine = new SuggestionEngine({
     const entry = [...editors.values()].find(
       (e) => e.adapter.getEditorIdentity() === result.editorId,
     );
+    // Local insights (stats + score) are computed on EVERY completion —
+    // both are pure functions, cost nothing, and feed the floating
+    // widget plus the side-panel dashboard broadcast below.
+    if (entry) {
+      const text = entry.adapter.getText();
+      const stats = computeTextStats(text);
+      const score = computeScoreBreakdown(text, result.issues);
+      lastStatsByEditor.set(result.editorId, stats);
+      lastScoreByEditor.set(result.editorId, score);
+      widget?.setIssues(result.issues.length);
+      widget?.setScore(score);
+      widget?.setChecking(false);
+      // Fire-and-forget broadcast for the side panel / popup dashboards.
+      chrome.runtime
+        .sendMessage({
+          type: "insights-update",
+          editorId: result.editorId,
+          stats,
+          score,
+          tones: tonesByEditor.get(result.editorId) ?? [],
+          issueCount: result.issues.length,
+        })
+        .catch(() => undefined);
+      // Auto tone detection on its own (slower) debounce. Cancel first so
+      // rapid successive analyses never stack tone requests.
+      if (settingsCache?.autoToneDetect !== false) {
+        toneDebouncer.cancel(result.editorId);
+        toneDebouncer.schedule(result.editorId, () =>
+          runToneDetection(entry.adapter),
+        );
+      }
+    } else {
+      widget?.setChecking(false);
+    }
     // The inlineSuggestions setting gates marker rendering only — the
     // status/popup plumbing still runs so the toolbar state stays honest.
     void getSettings().then((s) => {
@@ -453,6 +604,27 @@ engine = new SuggestionEngine({
         entry.unsubscribeClick = entry.layer.onClick((id) =>
           onIssueMarkerClick(result.editorId, id),
         );
+        // Hover suggestions (task 3-a): same replace-first wiring as the
+        // click handler, with short delays so a mouse sweep across many
+        // markers doesn't pop a card for every one it crosses. The shared
+        // timer means a new hover always supersedes a pending hide.
+        entry.unsubscribeHover?.();
+        entry.unsubscribeHoverEnd?.();
+        entry.unsubscribeHover = null;
+        entry.unsubscribeHoverEnd = null;
+        if (settingsCache?.hoverSuggestions !== false) {
+          entry.unsubscribeHover = entry.layer.onHover((id) => {
+            window.clearTimeout(hoverTimer);
+            hoverTimer = window.setTimeout(
+              () => showSuggestionForIssue(result.editorId, id),
+              350,
+            );
+          });
+          entry.unsubscribeHoverEnd = entry.layer.onHoverEnd(() => {
+            window.clearTimeout(hoverTimer);
+            hoverTimer = window.setTimeout(() => popup?.hide(), 400);
+          });
+        }
       }
     });
     chrome.runtime
@@ -460,6 +632,8 @@ engine = new SuggestionEngine({
       .catch(() => undefined);
   },
   onAnalyzeError: (editorId, code, message) => {
+    // Stop the widget spinner even when the failing editor is gone.
+    widget?.setChecking(false);
     // Persist a local diagnostics entry so the options page's
     // "Recent diagnostics" list reflects real analysis failures
     // (capped in storage.ts — never contains user text).
@@ -590,6 +764,13 @@ engine = new SuggestionEngine({
       void getSettings()
         .then((s) => {
           settingsCache = s;
+          // Enforce widget visibility live (task 3-a): turning the widget
+          // off in the options page must tear it down immediately, not on
+          // next focus. Turning it back on re-docks on the next focus.
+          if (s.showFloatingWidget === false && widget) {
+            widget.dispose();
+            widget = null;
+          }
         })
         .catch(() => undefined);
     }
@@ -605,6 +786,7 @@ engine = new SuggestionEngine({
         for (const entry of editors.values()) entry.detach();
         editors.clear();
         popup?.hide();
+        widget?.hide();
       }
     })();
   });
@@ -627,6 +809,57 @@ engine = new SuggestionEngine({
     true,
   );
 
+  // Double-click thesaurus (Grammarly parity, task 3-a). Capture listener
+  // so it runs before site handlers can interfere; the setTimeout(0) lets
+  // the browser finish selecting the double-clicked word before we read
+  // the adapter's selection.
+  document.addEventListener(
+    "dblclick",
+    () => {
+      window.setTimeout(() => {
+        const active = document.activeElement;
+        const editorEl = active instanceof HTMLElement ? findEditorAt(active) : null;
+        const entry = editorEl ? editors.get(editorEl) : undefined;
+        if (!entry) return;
+        if (settingsCache?.doubleClickSynonyms === false) return;
+        const adapter = entry.adapter;
+        const sel = adapter.getSelection();
+        const text = adapter.getText();
+        const word = text.slice(sel.start, sel.end).trim();
+        // Single words only — Latin + Latin-extended letters, apostrophes
+        // and hyphens, min 2 chars. Anything else isn't thesaurus material.
+        if (!/^[A-Za-z\u00C0-\u024F'’-]{2,}$/.test(word)) return;
+        const caret = adapter.getCaretRect(sel.start);
+        if (!caret) return;
+        const context = text.slice(Math.max(0, sel.start - 80), sel.end + 80);
+        void requestSynonyms(word, context)
+          .then((list) => {
+            if (!list.length) return;
+            if (!synonymsCard) {
+              synonymsCard = new SynonymsCard({
+                onPick: (syn) => {
+                  // Stale check: the exact word we looked up must still
+                  // sit at the same offsets before we splice it.
+                  const cur = adapter.getText();
+                  if (cur.slice(sel.start, sel.end) !== word) {
+                    synonymsCard?.hide();
+                    return;
+                  }
+                  adapter.replaceRange(sel.start, sel.end, syn);
+                  synonymsCard?.hide();
+                  scheduleAnalysis(adapter);
+                },
+                onClose: () => synonymsCard?.hide(),
+              });
+            }
+            synonymsCard.show(word, sel.start, sel.end, caret, list);
+          })
+          .catch(() => undefined);
+      }, 0);
+    },
+    true,
+  );
+
   // Disconnect observers + detach editors when the document is unloaded.
   // SPA route changes (pushState/replaceState) don't fire beforeunload,
   // but the focusin listener + observer.disconnect() on actual unload
@@ -637,6 +870,9 @@ engine = new SuggestionEngine({
     editors.clear();
     debouncer.dispose();
     popup?.hide();
+    widget?.dispose();
+    toneDebouncer.dispose();
+    synonymsCard?.hide();
   });
 })();
 

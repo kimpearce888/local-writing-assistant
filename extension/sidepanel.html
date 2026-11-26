@@ -10,30 +10,70 @@
     <h1>Writing Assistant</h1>
   </header>
   <main>
-    <section>
+    <section class="editor-section">
       <h2>Your text</h2>
-      <textarea id="selectedText" rows="6"
+      <textarea id="selectedText" rows="7"
         placeholder="Write here, or select text on the page — it will appear here."></textarea>
+      <div class="editor-meta">
+        <span id="wordCount">0 words</span> · <span id="checkChip" class="chip">Idle</span>
+      </div>
     </section>
-    <section>
+
+    <nav class="tabs" role="tablist" aria-label="Panel sections">
+      <button id="tab-check" type="button" role="tab" aria-selected="true" class="tab active">Check</button>
+      <button id="tab-insights" type="button" role="tab" aria-selected="false" class="tab">Insights</button>
+      <button id="tab-actions" type="button" role="tab" aria-selected="false" class="tab">Rewrite &amp; Write</button>
+    </nav>
+
+    <section id="panel-check" class="tab-panel active" role="tabpanel" aria-label="Check">
+      <div class="check-toolbar">
+        <button id="checkNowBtn" type="button" class="btn">Check now</button>
+        <button id="acceptAllBtn" type="button" class="btn">Accept all</button>
+      </div>
+      <ul id="issuesList" class="issues-list" aria-label="Issues found"></ul>
+      <p id="issuesEmpty" class="muted">No issues found yet — click “Check now” or just keep typing.</p>
+    </section>
+
+    <section id="panel-insights" class="tab-panel hidden-tab" role="tabpanel" aria-label="Insights">
+      <h2>Performance</h2>
+      <div id="scoreDashboard" class="score-dashboard"></div>
+      <h2>Stats</h2>
+      <div id="statsGrid" class="stats-grid"></div>
+      <h2>Tone</h2>
+      <div class="tone-card">
+        <button id="detectToneBtn" type="button" class="btn">Detect tone</button>
+        <ul id="toneList" class="tone-list"></ul>
+      </div>
+      <h2>Synonyms</h2>
+      <div class="syn-row">
+        <button id="synonymsBtn" type="button" class="btn">Find synonyms for selected word</button>
+        <ul id="synonymList" class="tone-list"></ul>
+      </div>
+    </section>
+
+    <!-- The Rewrite & Write tab is NOT a single wrapper: #resultSection and
+         #actionMenu must stay DIRECT children of <main> (layout contract —
+         the test walks main.children by id), so each piece carries the
+         .hidden-tab class when another tab is active. -->
+    <section id="customSection" class="hidden-tab">
       <h2>Custom instruction</h2>
       <input type="text" id="customInstruction" placeholder="e.g. Rewrite this to sound polite but direct." />
-      <button id="runCustom">Run</button>
+      <button id="runCustom" type="button">Run</button>
     </section>
-    <section id="resultSection">
+    <section id="resultSection" class="hidden-tab">
       <h2>Result</h2>
       <textarea id="resultText" rows="8"
         placeholder="The result appears here. Edit it freely before applying."></textarea>
       <div class="result-actions">
-        <button id="replaceBtn" class="primary">Replace</button>
-        <button id="copyBtn">Copy</button>
+        <button id="replaceBtn" type="button" class="primary">Replace</button>
+        <button id="copyBtn" type="button">Copy</button>
       </div>
     </section>
-    <p id="errorLine" class="error" hidden></p>
+    <p id="errorLine" class="error hidden-tab" hidden></p>
     <!-- Populated by sidepanel.js from the CATEGORIES table. The
          working area above stays visible; actions live below it, one
          collapsible group at a time. -->
-    <nav id="actionMenu" class="action-menu" aria-label="Writing actions"></nav>
+    <nav id="actionMenu" class="action-menu hidden-tab" aria-label="Writing actions"></nav>
   </main>
   <script type="module" src="src/sidepanel/index.ts"></script>
 </body>

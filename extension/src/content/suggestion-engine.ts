@@ -220,6 +220,15 @@ export class SuggestionEngine {
         clarity: settings.checkClarity,
         word_choice: settings.checkWordChoice,
       },
+      // Grammarly-parity goals: dialect / audience / formality / domain
+      // shape every inline suggestion (US vs UK spelling, jargon tolerance,
+      // formality strictness, domain style).
+      goals: {
+        dialect: settings.dialect,
+        audience: settings.audience,
+        formality: settings.formality,
+        domain: settings.domain,
+      },
     });
 
     // Truncate to the native-host payload limit. The host clamps by

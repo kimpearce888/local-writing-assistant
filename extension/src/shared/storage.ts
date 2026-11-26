@@ -28,6 +28,13 @@ const TONE_VALUES: ReadonlySet<string> = new Set<ToneMode>([
   "engaging", "persuasive", "direct",
 ]);
 
+const DIALECT_VALUES: ReadonlySet<string> = new Set(["us", "uk", "ca", "au"]);
+const AUDIENCE_VALUES: ReadonlySet<string> = new Set(["general", "knowledgeable", "expert"]);
+const GOAL_FORMALITY_VALUES: ReadonlySet<string> = new Set(["informal", "neutral", "formal"]);
+const DOMAIN_VALUES: ReadonlySet<string> = new Set([
+  "general", "academic", "business", "email", "casual", "creative",
+]);
+
 function clampInt(v: unknown, min: number, max: number, fallback: number): number {
   const n = typeof v === "number" ? v : typeof v === "string" && v.trim() !== "" ? Number(v) : NaN;
   if (!Number.isFinite(n)) return fallback;
@@ -86,11 +93,35 @@ export function validateSettings(
       case "checkPunctuation":
       case "checkClarity":
       case "checkWordChoice":
+      case "showFloatingWidget":
+      case "hoverSuggestions":
+      case "doubleClickSynonyms":
+      case "autoToneDetect":
         (out[key] as boolean) = coerceBool(v, DEFAULT_SETTINGS[key]);
         break;
       case "tone":
         if (typeof v === "string" && TONE_VALUES.has(v)) {
           out.tone = v as ToneMode;
+        }
+        break;
+      case "dialect":
+        if (typeof v === "string" && DIALECT_VALUES.has(v)) {
+          out.dialect = v as ExtensionSettings["dialect"];
+        }
+        break;
+      case "audience":
+        if (typeof v === "string" && AUDIENCE_VALUES.has(v)) {
+          out.audience = v as ExtensionSettings["audience"];
+        }
+        break;
+      case "formality":
+        if (typeof v === "string" && GOAL_FORMALITY_VALUES.has(v)) {
+          out.formality = v as ExtensionSettings["formality"];
+        }
+        break;
+      case "domain":
+        if (typeof v === "string" && DOMAIN_VALUES.has(v)) {
+          out.domain = v as ExtensionSettings["domain"];
         }
         break;
       case "debounceMs":

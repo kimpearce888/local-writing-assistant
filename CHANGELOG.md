@@ -6,7 +6,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
-### Security
+## [1.8.0] — 2026-11-25
+
+Grammarly-parity release. Everything below runs 100% locally — no new permissions, no new network endpoints, no telemetry.
+
+### Added
+- **Floating assistant widget** (content script): Grammarly-style circle docked to the focused editor — spins while checking, count badge (green/red), detected-tone emoji chip (≥150 chars), score tooltip, and a quick menu (Open writing panel · Check now · Detect tone · Pause/Resume site · Settings). Skips editors < 38 px tall; fully keyboard/ARIA accessible; `showFloatingWidget` toggle in Options.
+- **Hover-to-open suggestion cards**: hovering an inline underline opens the suggestion card after 350 ms (previously click-only). `hoverSuggestions` toggle.
+- **Editable suggestions**: every suggestion card (inline popup + side-panel issue cards) lets the user edit the proposed replacement before applying — a capability Grammarly does not have.
+- **Performance scores**: Overall + Correctness / Clarity / Engagement / Delivery, computed locally from the issue list weighted by density per 100 words; shown in the side panel dashboard, the popup, and the widget tooltip.
+- **Writing stats**: words, characters, sentences, paragraphs, unique words / vocabulary richness, average sentence length, long-sentence count, reading + speaking time, Flesch Reading Ease + grade with label — all deterministic local math, no LLM round trip.
+- **Tone detection**: 26-tone Grammarly-aligned detector (prompt-driven via the existing `rewrite` command) with a pure-local heuristic fallback so tone still works when LM Studio is offline. Auto-detects 2.5 s after typing stops (`autoToneDetect` toggle) and on demand.
+- **Writing goals** (Options → Writing goals): dialect (US/UK/CA/AU), audience (General/Knowledgeable/Expert), formality, domain — injected into every grammar check and tuning suggestion strictness. Free, unlike Grammarly.
+- **Double-click thesaurus**: double-click a word in any web editor for a synonyms card; clicking a synonym replaces the word (stale-checked). Panel equivalent button included. `doubleClickSynonyms` toggle.
+- **Continue writing**: new `continue` operation in the side panel's Write group; the result Appends to the panel editor (button label switches to “Append to text”).
+- **Side panel rebuild — three tabs**: Check (live issue cards with editable replacements, Accept / Accept all / Dismiss, “Check now”), Insights (score dashboard, 10-metric stats grid, tone card with Detect tone, synonyms lookup), Rewrite & Write (existing 25-op action menu + custom instruction + result). The editor textarea is shared across tabs and stays editable while typing.
+- **Popup insights card**: score / words / readability / tone summary for the active tab, cached per-tab in session storage (`insights:<tabId>`) via the new `insights-update` broadcast.
+- Context-menu entries: “Check writing now” (editable fields) and “Detect tone” (selection → opens panel Insights tab).
+- Options page: Writing-goals card, four UX toggles, corrected ranges (`maxConcurrent` 1–8, `maxTextSize` 100–100000).
+
+### Changed
+- Grammar prompt now carries the goals block (dialect/audience/formality/domain) on every check.
+- Side-panel action menu: added previously unreachable ops `clearer` / `friendly` / `formal` and new `continue` op (37 → 41 menu actions).
+- New settings validated/clamped by `validateSettings`: `dialect`, `audience`, `formality`, `domain`, `showFloatingWidget`, `hoverSuggestions`, `doubleClickSynonyms`, `autoToneDetect`.
+- Version bumped to 1.8.0 across manifest, packages, installer.
+
+### Fixed
+- The three feature gaps reported after v1.7.1: issues now surface **while writing** (debounced auto-check in both page editors and the panel), the side panel is a **first-class editable writing area**, and results are **editable before applying**.
+
+### Security & hardening
 - Scrubbed a leaked machine credential and a personal absolute path from `HANDOVER.md` (introduced in a6a12c7). The credential must be rotated separately — it remains in git history.
 - `native-bridge-call` in the service worker is now guarded: sender identity check, 6-command allowlist, and a 1 MiB payload cap (the content script previously could request any command with any payload size).
 - Settings import/export no longer round-trips the dead `lmStudioToken` field; every settings value is now type-checked and clamped by `validateSettings` (message path, import, and storage reads).
@@ -473,7 +501,8 @@ No cloud, no telemetry, no remote backend, no SaaS, no account, no login. The on
 - The PowerShell installer scripts have been manually reviewed for syntax and brace balance but have not been executed against real Windows PowerShell in this release. Run `Diagnose.bat` after install to verify every layer.
 - Real-world contenteditable behavior in Gmail / Outlook web / other rich-text editors may surface edge cases. The adapter uses `execCommand("insertText")` for undo preservation, but some editors intercept or override this command.
 
-[Unreleased]: https://github.com/kimpearce888/local-writing-assistant/compare/v1.7.1...HEAD
+[Unreleased]: https://github.com/kimpearce888/local-writing-assistant/compare/v1.8.0...HEAD
+[1.8.0]: https://github.com/kimpearce888/local-writing-assistant/compare/v1.7.1...v1.8.0
 [1.7.1]: https://github.com/kimpearce888/local-writing-assistant/releases/tag/v1.7.1
 [1.7.0]: https://github.com/kimpearce888/local-writing-assistant/releases/tag/v1.7.0
 [1.6.0]: https://github.com/kimpearce888/local-writing-assistant/releases/tag/v1.6.0

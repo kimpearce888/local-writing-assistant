@@ -4,8 +4,48 @@
  */
 
 import { getSettings, saveSettings } from "../shared/storage";
+import { scoreBand } from "../shared/score";
+import { toneEmoji } from "../shared/tone";
+import { WritingInsights } from "../shared/types";
 
 const $ = (id: string) => document.getElementById(id) as HTMLElement | null;
+
+/** Render the insights mini-dashboard from the SW-cached per-tab
+ *  WritingInsights. Keeps "—" placeholders when nothing has been
+ *  analyzed on the active tab yet (insights === null). */
+function renderInsights(insights: WritingInsights | null): void {
+  const scoreEl = $("scoreValue");
+  const wordsEl = $("wordsValue");
+  const readabilityEl = $("readabilityValue");
+  const toneEl = $("toneValue");
+  if (!insights) {
+    if (scoreEl) {
+      scoreEl.textContent = "—";
+      scoreEl.className = "value";
+    }
+    if (wordsEl) wordsEl.textContent = "—";
+    if (readabilityEl) readabilityEl.textContent = "—";
+    if (toneEl) toneEl.textContent = "—";
+    return;
+  }
+  if (scoreEl) {
+    const overall =
+      typeof insights.score?.overall === "number" ? insights.score.overall : 0;
+    scoreEl.textContent = `${overall}`;
+    scoreEl.className = `value band-${scoreBand(overall)}`;
+  }
+  if (wordsEl) wordsEl.textContent = String(insights.stats?.words ?? 0);
+  if (readabilityEl) {
+    readabilityEl.textContent = `${insights.stats?.readabilityLabel ?? "—"} (${
+      insights.stats?.fleschReadingEase ?? "—"
+    })`;
+  }
+  if (toneEl) {
+    toneEl.textContent = insights.tones?.length
+      ? insights.tones.map((t) => `${toneEmoji(t.tone)} ${t.tone}`).join(", ")
+      : "—";
+  }
+}
 
 async function refreshStatus(): Promise<void> {
   const status = (await chrome.runtime.sendMessage({ type: "popup-status-query" })) as {
@@ -13,6 +53,7 @@ async function refreshStatus(): Promise<void> {
     connected: boolean;
     model: string;
     suggestionCount: number;
+    insights: WritingInsights | null;
   } | null;
   if (!status) return;
   ($("enabledToggle") as HTMLInputElement).checked = status.enabled;
@@ -21,6 +62,7 @@ async function refreshStatus(): Promise<void> {
     : "○ Not connected";
   ($("modelValue") as HTMLElement).textContent = status.model || "—";
   ($("suggestionsValue") as HTMLElement).textContent = String(status.suggestionCount ?? 0);
+  renderInsights(status.insights ?? null);
   // Reflect the current site's pause state on the pause/resume buttons.
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });

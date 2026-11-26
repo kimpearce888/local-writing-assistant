@@ -65,8 +65,8 @@ describe("side panel layout", () => {
       cats.map((c) => c.querySelector<HTMLElement>(".cat-title")!.getAttribute("aria-expanded")),
     ).toEqual(["true", "false", "false", "false"]);
 
-    expect(document.querySelectorAll(".action-item").length).toBe(37); // 16+2+3+16
-    expect(visibleActionItems().length).toBe(16);
+    expect(document.querySelectorAll(".action-item").length).toBe(41); // 19+3+3+16
+    expect(visibleActionItems().length).toBe(19);
     expect(visibleActionItems()[0].textContent).toContain("Improve it");
   });
 
@@ -91,10 +91,11 @@ describe("side panel layout", () => {
     expect(rewriteHeader.getAttribute("aria-expanded")).toBe("false");
 
     const visible = visibleActionItems();
-    expect(visible.length).toBe(2); // only Write's two actions remain open
+    expect(visible.length).toBe(3); // only Write's three actions remain open
     expect(visible.map((b) => b.textContent)).toEqual([
       expect.stringContaining("Create a TL;DR"),
       expect.stringContaining("Turn bullets to prose"),
+      expect.stringContaining("Continue writing"),
     ]);
   });
 });

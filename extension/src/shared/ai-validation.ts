@@ -198,3 +198,111 @@ export function escapeHtml(s: string): string {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 }
+
+/* ---------------- Tone detection ---------------- */
+
+/** The tone vocabulary the detector prompt allows (keep in sync with
+ *  shared/tone.ts DETECTABLE_TONES). */
+const VALID_TONES: ReadonlySet<string> = new Set([
+  "confident", "friendly", "formal", "informal", "optimistic", "joyful",
+  "encouraging", "supportive", "excited", "curious", "hopeful", "proud",
+  "grateful", "calm", "assertive", "empathetic", "appreciative",
+  "respectful", "neutral", "blunt", "urgent", "serious", "sad",
+  "frustrated", "direct", "persuasive",
+]);
+
+/**
+ * Parse a tone-detection response ({tones:[{tone,score}]}) from the
+ * untrusted model. Unknown tone names are dropped, scores clamped to
+ * [0,1], duplicates collapsed, output sorted strongest-first and capped
+ * at 3. If the model ignored the JSON instruction, any recognized tone
+ * words in the plain text are used as a low-confidence fallback.
+ */
+export function parseToneDetectResponse(raw: string): Array<{ tone: string; score: number }> {
+  const block = extractJsonBlock(raw);
+  const parsed = safeParse(block);
+  const out: Array<{ tone: string; score: number }> = [];
+  if (isObject(parsed) && Array.isArray(parsed.tones)) {
+    for (const item of parsed.tones.slice(0, 6)) {
+      if (!isObject(item)) continue;
+      const tone = asString(item.tone)?.trim().toLowerCase();
+      if (!tone || !VALID_TONES.has(tone)) continue;
+      const score = asFloat(item.score);
+      if (score === null || score < 0 || score > 1) continue;
+      if (out.some((x) => x.tone === tone)) continue;
+      out.push({ tone, score: Math.round(score * 100) / 100 });
+      if (out.length >= 3) break;
+    }
+  }
+  if (out.length === 0) {
+    // Plain-text fallback: recognized tone words mentioned by the model.
+    const lowered = stripFences(raw).toLowerCase();
+    for (const tone of VALID_TONES) {
+      if (lowered.includes(tone) && !out.some((x) => x.tone === tone)) {
+        out.push({ tone, score: 0.4 });
+        if (out.length >= 3) break;
+      }
+    }
+  }
+  return out.sort((a, b) => b.score - a.score);
+}
+
+/* ---------------- Synonyms ---------------- */
+
+/**
+ * Parse a synonyms response ({synonyms:[...]}) from the untrusted model.
+ * Validates: strings, trimmed, deduped, ≤60 chars, ≤3 words each, never
+ * equal to the original word. Returns up to 12 synonyms.
+ */
+export function parseSynonymsResponse(
+  raw: string,
+  originalWord: string,
+): string[] {
+  const block = extractJsonBlock(raw);
+  const parsed = safeParse(block);
+  const out: string[] = [];
+  const push = (s: string): void => {
+    const v = s.trim().replace(/\s+/g, " ");
+    if (!v || v.length > 60) return;
+    if (v.split(" ").length > 3) return;
+    const lower = v.toLowerCase();
+    if (lower === originalWord.trim().toLowerCase()) return;
+    if (out.some((x) => x.toLowerCase() === lower)) return;
+    out.push(v);
+  };
+  if (isObject(parsed)) {
+    const arr =
+      Array.isArray(parsed.synonyms)
+        ? parsed.synonyms
+        : Array.isArray(parsed.rewritten)
+          ? parsed.rewritten
+          : null;
+    if (arr) {
+      for (const item of arr) {
+        const s = asString(item);
+        if (s !== null) push(s);
+        if (out.length >= 12) break;
+      }
+      return out;
+    }
+    // Model returned something else — if it returned a single rewritten
+    // string with comma-separated words, split it.
+    for (const key of ["rewritten", "text", "output"]) {
+      const s = asString((parsed as Record<string, unknown>)[key]);
+      if (s && s.trim()) {
+        for (const piece of s.split(/[,;]/)) {
+          push(piece.replace(/^["'\s]+|["'\s.]+$/g, ""));
+          if (out.length >= 12) break;
+        }
+        return out;
+      }
+    }
+    return out;
+  }
+  // Plain text fallback: comma / newline separated words.
+  for (const piece of stripFences(raw).split(/[\n,;]/)) {
+    push(piece.replace(/^["'\s]+|["'\s.]+$/g, ""));
+    if (out.length >= 12) break;
+  }
+  return out;
+}

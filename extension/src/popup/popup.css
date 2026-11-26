@@ -94,6 +94,15 @@ main {
   margin: 0;
   word-break: break-word;
 }
+/* Insights mini-dashboard score bands (Grammarly-like colors). */
+.band-good { color: #1a7f37; }
+.band-fair { color: #9a6700; }
+.band-weak { color: #d33b3b; }
+@media (prefers-color-scheme: dark) {
+  .band-good { color: #3fb950; }
+  .band-fair { color: #d29922; }
+  .band-weak { color: #f85149; }
+}
 /* Toggle switch */
 .switch {
   position: relative;

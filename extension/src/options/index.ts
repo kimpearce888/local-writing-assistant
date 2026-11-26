@@ -37,7 +37,15 @@ async function loadSettingsToUI(): Promise<void> {
   setCheck("checkPunctuation", s.checkPunctuation);
   setCheck("checkClarity", s.checkClarity);
   setCheck("checkWordChoice", s.checkWordChoice);
+  setCheck("showFloatingWidget", s.showFloatingWidget);
+  setCheck("hoverSuggestions", s.hoverSuggestions);
+  setCheck("doubleClickSynonyms", s.doubleClickSynonyms);
+  setCheck("autoToneDetect", s.autoToneDetect);
   setValue("tone", s.tone);
+  setValue("dialect", s.dialect);
+  setValue("audience", s.audience);
+  setValue("formality", s.formality);
+  setValue("domain", s.domain);
   setNumber("debounceMs", s.debounceMs);
   setNumber("maxTextSize", s.maxTextSize);
   setNumber("maxConcurrent", s.maxConcurrent);
@@ -90,7 +98,15 @@ async function gatherSettingsFromUI(): Promise<ExtensionSettings> {
     checkPunctuation: readBool("checkPunctuation"),
     checkClarity: readBool("checkClarity"),
     checkWordChoice: readBool("checkWordChoice"),
+    showFloatingWidget: readBool("showFloatingWidget"),
+    hoverSuggestions: readBool("hoverSuggestions"),
+    doubleClickSynonyms: readBool("doubleClickSynonyms"),
+    autoToneDetect: readBool("autoToneDetect"),
     tone: readStr("tone") as ExtensionSettings["tone"],
+    dialect: readStr("dialect") as ExtensionSettings["dialect"],
+    audience: readStr("audience") as ExtensionSettings["audience"],
+    formality: readStr("formality") as ExtensionSettings["formality"],
+    domain: readStr("domain") as ExtensionSettings["domain"],
     debounceMs: readNumber("debounceMs", DEFAULT_SETTINGS.debounceMs),
     maxTextSize: readNumber("maxTextSize", DEFAULT_SETTINGS.maxTextSize),
     maxConcurrent: readNumber("maxConcurrent", DEFAULT_SETTINGS.maxConcurrent),

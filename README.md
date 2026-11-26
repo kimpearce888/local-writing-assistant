@@ -3,7 +3,7 @@
 [![CI](https://github.com/kimpearce888/local-writing-assistant/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/kimpearce888/local-writing-assistant/actions/workflows/ci.yml)
 [![E2E](https://img.shields.io/badge/E2E-10%2F10%20passing-brightgreen.svg)](#testing)
 [![Release](https://github.com/kimpearce888/local-writing-assistant/actions/workflows/release.yml/badge.svg)](https://github.com/kimpearce888/local-writing-assistant/releases)
-[![Version](https://img.shields.io/badge/version-1.7.1-blue.svg)](https://github.com/kimpearce888/local-writing-assistant/releases/tag/v1.7.1)
+[![Version](https://img.shields.io/badge/version-1.8.0-blue.svg)](https://github.com/kimpearce888/local-writing-assistant/releases/tag/v1.8.0)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![No cloud](https://img.shields.io/badge/runtime-no%20cloud%20AI-1f6feb.svg)](PRIVACY.md)
 
@@ -15,7 +15,7 @@ Your text never leaves your computer. No cloud AI, no telemetry, no account. The
   <img src="docs/screenshots/suggestion-popup.png" alt="Inline grammar suggestion popup over a real email compose UI — the word 'don\'t have' is underlined and a popup offers Replace / Ignore / Add to dictionary" width="720" />
 </p>
 
-> **v1.7.1** — actionable LM Studio error classification + v1.6 categorized side-panel menu. [See what's new →](CHANGELOG.md)
+> **v1.8.0** — full Grammarly-parity release: floating assistant widget, performance scores, tone detection, writing stats, goals, synonyms, hover cards. [See what's new →](CHANGELOG.md)
 
 ---
 
@@ -27,13 +27,37 @@ Cloud-AI writing assistants have three problems: **privacy** (your draft cover l
 
 ## What it does
 
-* Grammar · spelling · punctuation · clarity · word-choice checking
-* Tone transformation: Professional, Friendly, Formal, Casual, Concise, Confident, Neutral
-* Rewrite operations: Improve · Shorter · Clearer · Professional · Friendly · Formal · Simplify · Custom
-* Inline suggestions with stale-result protection
-* Side panel for selection-based rewrites
+* **Real-time checking while you type** — debounced grammar · spelling · punctuation · clarity · word-choice analysis in any web editor, with colored inline underlines and hover-to-open suggestion cards
+* **Floating assistant widget** — Grammarly-style circle docked to the focused editor: spins while checking, shows the suggestion count badge, your detected-tone emoji, and a quick menu (open panel, check now, detect tone, pause site, settings)
+* **Editable writing panel** — a full writing surface in the side panel: write there directly, see issues as editable suggestion cards (tweak any replacement before applying), Accept / Accept all / Dismiss
+* **Performance scores** — Overall + Correctness / Clarity / Engagement / Delivery (Grammarly's four dimensions), computed locally from your issue list
+* **Writing stats** — words, characters, sentences, paragraphs, reading + speaking time, Flesch readability grade, vocabulary richness
+* **Tone detection** — 26-tone detector (Grammarly-aligned vocabulary) with local heuristic fallback when LM Studio is offline
+* **Goals** — dialect (US/UK/CA/AU), audience, formality, domain tune every check and rewrite
+* **Synonyms** — double-click any word in a web editor (or use the panel button) for a thesaurus card; click a synonym to replace the word
+* **Continue writing** — extend your draft in the panel with style-matched continuation
+* 25 rewrite operations · 19 tone transformations · custom instructions
 * Custom dictionary, per-site exclusions, per-site pause
 * Diagnostics tool, light/dark mode, settings import/export
+
+### Grammarly parity matrix
+
+| Feature | Grammarly (cloud) | Local Writing Assistant (v1.8) |
+|---|---|---|
+| Real-time inline suggestions | ✓ | ✓ (debounced while typing) |
+| Floating widget (spinner → count badge → tone emoji) | ✓ | ✓ |
+| Hover to open suggestion card | ✓ | ✓ |
+| Suggestion card: accept / dismiss / add to dictionary | ✓ | ✓ |
+| **Edit the suggestion before applying** | ✗ | ✓ |
+| Performance scores (Correctness/Clarity/Engagement/Delivery) | ✓ | ✓ (computed locally) |
+| Tone detector | ✓ (paid) | ✓ (26 tones, free + offline fallback) |
+| Writing stats + readability | ✓ | ✓ (Flesch + speaking time) |
+| Goals (dialect / audience / formality / domain) | ✓ (paid) | ✓ (free) |
+| Double-click synonyms | ✓ | ✓ |
+| Continue writing | ✓ (quota) | ✓ (unlimited, local) |
+| Rewrite / shorten / tone ops | ✓ (quota) | 25 ops + 19 tones, unlimited |
+| Works offline | ✗ | ✓ (heuristic tone + stats; checks resume with LM Studio) |
+| Text leaves your device | ✓ | **never** |
 
 <table>
   <tr>

@@ -7,6 +7,11 @@
   --accent-fg: #ffffff;
   --card: #f6f8fa;
   --error: #cf222e;
+  /* Score bands (Grammarly-like performance colors). */
+  --band-good: #1a7f37;
+  --band-fair: #9a6700;
+  --band-weak: #d33b3b;
+  --bar-track: #e5e9ee;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -17,6 +22,10 @@
     --accent: #2f81f7;
     --card: #161b22;
     --error: #f85149;
+    --band-good: #3fb950;
+    --band-fair: #d29922;
+    --band-weak: #f85149;
+    --bar-track: #21262d;
   }
 }
 * { box-sizing: border-box; }
@@ -42,6 +51,212 @@ section h2 {
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
+/* Accessibility helper: real text for screen readers where the visible
+   element is aria-hidden (issue pills). */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---- Tab strip (Check / Insights / Rewrite & Write) ---- */
+.tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 6px;
+}
+.tab {
+  appearance: none;
+  border: 1px solid transparent;
+  background: none;
+  color: var(--muted);
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.tab:hover { background: var(--card); color: var(--fg); filter: none; }
+.tab.active {
+  background: var(--accent);
+  color: var(--accent-fg);
+  border-color: var(--accent);
+}
+.tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.tab-panel { margin: 0; }
+/* Tab visibility: sections stay direct children of <main> (layout
+   contract) and are shown/hidden with this class instead of nesting. */
+.hidden-tab { display: none !important; }
+[hidden] { display: none !important; }
+
+/* ---- Working area meta line (word count + check status chip) ---- */
+.editor-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--fg);
+}
+
+/* ---- Check tab ---- */
+.check-toolbar { display: flex; gap: 6px; margin-bottom: 8px; }
+.btn { font-weight: 500; }
+.btn.subtle { color: var(--muted); background: none; }
+.issues-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 320px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+.issues-list::-webkit-scrollbar { width: 8px; }
+.issues-list::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+.issues-list::-webkit-scrollbar-track { background: transparent; }
+.issue-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+  background: var(--bg);
+}
+.issue-card.stale { opacity: 0.6; border-style: dashed; }
+.issue-pill {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #ffffff;
+}
+.issue-pill[data-cat="spelling"] { background: #d33b3b; }
+.issue-pill[data-cat="grammar"] { background: #e09b1a; }
+.issue-pill[data-cat="punctuation"] { background: #7a4dd6; }
+.issue-pill[data-cat="clarity"] { background: #1c8ad6; }
+.issue-pill[data-cat="word_choice"] { background: #1f9d6b; }
+.issue-pill[data-cat="style"] { background: #8a8f98; }
+.issue-explanation { margin: 6px 0; font-size: 12px; }
+.issue-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.issue-original { text-decoration: line-through; color: var(--muted); }
+.issue-arrow { color: var(--muted); }
+input.issue-edit {
+  flex: 1;
+  min-width: 120px;
+  width: auto;
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font: inherit;
+  background: var(--card);
+  color: var(--fg);
+}
+.muted { color: var(--muted); font-size: 12px; margin: 4px 0 0 0; }
+
+/* ---- Insights: performance dashboard ---- */
+.score-dashboard { display: flex; flex-direction: column; gap: 8px; }
+.score-overall { display: flex; align-items: baseline; gap: 8px; }
+.score-overall-num {
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.score-overall-label { font-size: 11px; color: var(--muted); }
+.band-good { color: var(--band-good); }
+.band-fair { color: var(--band-fair); }
+.band-weak { color: var(--band-weak); }
+.score-row { display: flex; align-items: center; gap: 8px; }
+.score-label { width: 88px; flex: none; font-size: 12px; }
+.score-value {
+  width: 26px;
+  flex: none;
+  text-align: right;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.score-bar {
+  flex: 1;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--bar-track);
+  overflow: hidden;
+}
+.score-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.2s ease;
+}
+.score-fill.band-good { background: var(--band-good); }
+.score-fill.band-fair { background: var(--band-fair); }
+.score-fill.band-weak { background: var(--band-weak); }
+
+/* ---- Insights: stats grid ---- */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.stat {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 8px;
+}
+.stat-value { font-weight: 700; font-size: 13px; }
+.stat-label { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+/* ---- Insights: tone + synonym chips ---- */
+.tone-card { display: flex; flex-direction: column; gap: 8px; }
+.syn-row { display: flex; flex-direction: column; gap: 8px; }
+.tone-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.tone-list:empty { display: none; }
+.tone-chip {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  font-size: 12px;
+  cursor: default;
+}
+.synonym-chip { cursor: pointer; }
+.synonym-chip:hover {
+  background: var(--accent);
+  color: var(--accent-fg);
+  border-color: var(--accent);
+}
+
 /* Categorized action menu (Rewrite / Write / Evaluate / Adjust tone).
    Lives below the working area; each category is a collapsible group
    so only the actions the user cares about take up space. */
@@ -70,7 +285,7 @@ section h2 {
   text-align: left;
   cursor: pointer;
 }
-.cat-title:hover { background: var(--card); }
+.cat-title:hover { background: var(--card); filter: none; }
 .cat-arrow { width: 12px; flex: none; font-size: 11px; color: var(--muted); }
 .cat-actions.collapsed { display: none; }
 .action-item {

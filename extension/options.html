@@ -24,6 +24,45 @@
       <label class="row"><input type="checkbox" id="checkPunctuation" /> Check punctuation</label>
       <label class="row"><input type="checkbox" id="checkClarity" /> Check clarity</label>
       <label class="row"><input type="checkbox" id="checkWordChoice" /> Check word choice</label>
+      <label class="row"><input type="checkbox" id="showFloatingWidget" /> Show floating assistant widget</label>
+      <label class="row"><input type="checkbox" id="hoverSuggestions" /> Open suggestion card on hover</label>
+      <label class="row"><input type="checkbox" id="doubleClickSynonyms" /> Double-click a word for synonyms</label>
+      <label class="row"><input type="checkbox" id="autoToneDetect" /> Detect tone automatically while writing</label>
+    </section>
+    <section class="card">
+      <h2>Writing goals</h2>
+      <label>Dialect
+        <select id="dialect">
+          <option value="us">US English</option>
+          <option value="uk">UK English</option>
+          <option value="ca">Canadian English</option>
+          <option value="au">Australian English</option>
+        </select>
+      </label>
+      <label>Audience
+        <select id="audience">
+          <option value="general">General</option>
+          <option value="knowledgeable">Knowledgeable</option>
+          <option value="expert">Expert</option>
+        </select>
+      </label>
+      <label>Formality
+        <select id="formality">
+          <option value="informal">Informal</option>
+          <option value="neutral">Neutral</option>
+          <option value="formal">Formal</option>
+        </select>
+      </label>
+      <label>Domain
+        <select id="domain">
+          <option value="general">General</option>
+          <option value="academic">Academic</option>
+          <option value="business">Business</option>
+          <option value="email">Email</option>
+          <option value="casual">Casual</option>
+          <option value="creative">Creative</option>
+        </select>
+      </label>
     </section>
     <section class="card">
       <h2>Tone</h2>
@@ -52,8 +91,8 @@
     <section class="card">
       <h2>Performance</h2>
       <label>Debounce delay (ms) <input type="number" id="debounceMs" min="100" max="5000" step="50" /></label>
-      <label>Maximum text size per request (chars) <input type="number" id="maxTextSize" min="500" max="20000" step="100" /></label>
-      <label>Maximum concurrent requests <input type="number" id="maxConcurrent" min="1" max="4" step="1" /></label>
+      <label>Maximum text size per request (chars) <input type="number" id="maxTextSize" min="100" max="100000" step="100" /></label>
+      <label>Maximum concurrent requests <input type="number" id="maxConcurrent" min="1" max="8" step="1" /></label>
       <label>Minimum confidence (0.0–1.0) <input type="number" id="minConfidence" min="0" max="1" step="0.05" /></label>
     </section>
     <section class="card">

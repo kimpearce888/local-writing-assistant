@@ -4,6 +4,12 @@
  * Single floating element attached to documentElement. Positions itself
  * with collision detection against viewport + fixed headers. Closes on
  * Escape, outside click, or explicit close button.
+ *
+ * Task 3-a addition: an "✎ Edit" button lets the user fine-tune the
+ * replacement in an inline textarea before applying it (the edited value
+ * is what the Apply button dispatches). While the textarea has focus the
+ * outside-click handler must NOT close the popup — it already only closes
+ * for clicks outside the root, and the textarea lives inside the root.
  */
 
 import { escapeHtml } from "../shared/ai-validation";
@@ -21,6 +27,9 @@ export interface PopupCallbacks {
 export class SuggestionPopup {
   private root: HTMLDivElement | null = null;
   private issue: TaggedIssue | null = null;
+  /** Replacement fine-tuned via the "✎ Edit" textarea. Null when the user
+   *  never touched it — in that case the model's original is dispatched. */
+  private editedReplacement: string | null = null;
   private cbs: PopupCallbacks;
   private outsideClickHandler: ((e: MouseEvent) => void) | null = null;
   private escapeHandler: ((e: KeyboardEvent) => void) | null = null;
@@ -32,6 +41,7 @@ export class SuggestionPopup {
   show(issue: TaggedIssue, anchorRect: DOMRect): void {
     this.hide();
     this.issue = issue;
+    this.editedReplacement = null;
     const root = document.createElement("div");
     root.setAttribute("data-lwa-popup", "true");
     root.setAttribute("role", "dialog");
@@ -71,8 +81,16 @@ export class SuggestionPopup {
     const arrow = document.createElement("div");
     arrow.textContent = "↓";
     arrow.style.cssText = "text-align:center;color:#6e7681";
+    // Kept as a live element so the "✎ Edit" textarea can update the
+    // preview while the user types.
+    const replacementPreview = document.createElement("strong");
+    replacementPreview.textContent = issue.replacement;
     const newLine = document.createElement("div");
-    newLine.innerHTML = `<span style="color:#6e7681">→ </span><strong>${escapeHtml(issue.replacement)}</strong>`;
+    const arrowPrefix = document.createElement("span");
+    arrowPrefix.style.color = "#6e7681";
+    arrowPrefix.textContent = "→ ";
+    newLine.appendChild(arrowPrefix);
+    newLine.appendChild(replacementPreview);
     replacementBlock.appendChild(originalLine);
     replacementBlock.appendChild(arrow);
     replacementBlock.appendChild(newLine);
@@ -82,13 +100,76 @@ export class SuggestionPopup {
 
     const replaceBtn = this._button(t("suggestionReplace"), true);
     replaceBtn.addEventListener("click", () => {
-      if (this.issue) this.cbs.onReplace(this.issue);
+      if (this.issue) {
+        // Dispatch the EDITED replacement when the user fine-tuned it via
+        // "✎ Edit" — falls back to the model's original otherwise.
+        this.cbs.onReplace({
+          ...this.issue,
+          replacement: this.editedReplacement ?? this.issue.replacement,
+        });
+      }
     });
+    btnRow.appendChild(replaceBtn);
+
+    // "✎ Edit" — inline replacement editor (better than Grammarly).
+    // Only meaningful when there is a replacement to edit. While the
+    // textarea has focus the outside-click handler does NOT close the
+    // popup: it already only fires for clicks outside the root, and this
+    // textarea lives INSIDE the root.
+    if (issue.replacement.length > 0) {
+      const editBtn = this._button("✎ Edit", false);
+      let editArea: HTMLTextAreaElement | null = null;
+      const commitEdit = (): void => {
+        if (editArea) this.editedReplacement = editArea.value;
+      };
+      editBtn.addEventListener("click", () => {
+        if (!editArea) {
+          editArea = document.createElement("textarea");
+          editArea.rows = 2;
+          editArea.value = this.editedReplacement ?? issue.replacement;
+          editArea.setAttribute("aria-label", "Edit replacement");
+          editArea.setAttribute("data-lwa-popup", "true");
+          editArea.style.cssText = [
+            "width:100%",
+            "box-sizing:border-box",
+            "margin-top:6px",
+            "padding:6px 8px",
+            "border:1px solid #d0d7de",
+            "border-radius:6px",
+            "font-family:inherit",
+            "font-size:13px",
+            "line-height:1.4",
+            "color:#1f2328",
+            "background:#ffffff",
+            "resize:vertical",
+          ].join(";");
+          editArea.addEventListener("input", () => {
+            if (editArea) {
+              this.editedReplacement = editArea.value;
+              replacementPreview.textContent = editArea.value;
+            }
+          });
+          // blur + change commit the value even if the user never clicks
+          // "Done" (e.g. they go straight for the Apply button).
+          editArea.addEventListener("blur", commitEdit);
+          editArea.addEventListener("change", commitEdit);
+          root.insertBefore(editArea, btnRow);
+          editArea.focus();
+          editBtn.textContent = "Done";
+        } else {
+          commitEdit();
+          editArea.remove();
+          editArea = null;
+          editBtn.textContent = "✎ Edit";
+        }
+      });
+      btnRow.appendChild(editBtn);
+    }
+
     const ignoreBtn = this._button(t("suggestionIgnore"), false);
     ignoreBtn.addEventListener("click", () => {
       if (this.issue) this.cbs.onIgnore(this.issue);
     });
-    btnRow.appendChild(replaceBtn);
     btnRow.appendChild(ignoreBtn);
 
     if (issue.category === "spelling" && issue.original.trim().length > 0) {
@@ -173,8 +254,16 @@ export class SuggestionPopup {
     document.addEventListener("keydown", this.escapeHandler, true);
   }
 
+  /** True when this popup is currently visible and showing `issueId`.
+   *  Used by the hover-suggestion wiring to skip re-showing the same
+   *  issue (hover events re-fire constantly → popup would flicker). */
+  isShowing(issueId: string): boolean {
+    return this.root !== null && this.issue?.id === issueId;
+  }
+
   hide(): void {
     this.issue = null;
+    this.editedReplacement = null;
     if (this.outsideClickHandler) {
       document.removeEventListener("mousedown", this.outsideClickHandler, true);
       this.outsideClickHandler = null;

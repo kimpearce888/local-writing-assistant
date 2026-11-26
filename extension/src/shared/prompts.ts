@@ -12,7 +12,7 @@
  *  - return strict JSON
  */
 
-import { ANALYSIS_OPERATIONS, RewriteOperation, ToneMode } from "./types";
+import { ANALYSIS_OPERATIONS, RewriteOperation, ToneMode, WritingGoals } from "./types";
 
 const COMMON_RULES = `
 You are a writing-assistant analyzer running fully locally on the user's machine.
@@ -49,6 +49,57 @@ Rules:
 - Never include more than 20 issues per response.
 `.trim();
 
+/**
+ * Goals block (Grammarly parity): dialect / audience / formality / domain.
+ * Included in grammar checks and rewrites so the model tunes suggestions
+ * to what the user is writing, not to generic defaults.
+ */
+export function buildGoalsBlock(goals?: WritingGoals): string {
+  if (!goals) return "";
+  const dialectNames: Record<string, string> = {
+    us: "US English",
+    uk: "UK English",
+    ca: "Canadian English",
+    au: "Australian English",
+  };
+  const lines: string[] = ["Writing goals (tune your analysis to these):"];
+  lines.push(`- Dialect: ${dialectNames[goals.dialect] ?? "US English"} — flag spelling/usage that violates this dialect.`);
+  lines.push(
+    `- Audience: ${goals.audience} — ${
+      goals.audience === "general"
+        ? "flag unexplained jargon and technical terms."
+        : goals.audience === "knowledgeable"
+          ? "technical terms are fine; flag only unnecessary complexity."
+          : "domain experts; do not flag technical terminology."
+    }`,
+  );
+  lines.push(
+    `- Formality: ${goals.formality} — ${
+      goals.formality === "formal"
+        ? "flag contractions, slang, and overly casual phrasing."
+        : goals.formality === "informal"
+          ? "flag stiff, bureaucratic phrasing."
+          : "balanced register; do not push the text more formal or casual."
+    }`,
+  );
+  lines.push(
+    `- Domain: ${goals.domain} — ${
+      goals.domain === "academic"
+        ? "expect precise, evidence-oriented style; flag unsupported claims."
+        : goals.domain === "business"
+          ? "expect clear, action-oriented professional style."
+          : goals.domain === "email"
+            ? "expect concise correspondence; flag buried asks and unclear subject intent."
+            : goals.domain === "casual"
+              ? "relaxed everyday style is expected."
+              : goals.domain === "creative"
+                ? "creative license is expected; do not flag intentional stylistic choices."
+                : "no special domain expectations."
+    }`,
+  );
+  return lines.join("\n");
+}
+
 export function buildGrammarPrompt(opts: {
   categories: {
     spelling: boolean;
@@ -57,6 +108,7 @@ export function buildGrammarPrompt(opts: {
     clarity: boolean;
     word_choice: boolean;
   };
+  goals?: WritingGoals;
 }): { system: string } {
   const enabled: string[] = [];
   if (opts.categories.spelling) enabled.push("spelling");
@@ -65,10 +117,11 @@ export function buildGrammarPrompt(opts: {
   if (opts.categories.clarity) enabled.push("clarity");
   if (opts.categories.word_choice) enabled.push("word_choice");
   const catList = enabled.length ? enabled.join(", ") : "(none)";
+  const goalsBlock = buildGoalsBlock(opts.goals);
   return {
     system: `${COMMON_RULES}
 
-Enabled categories: ${catList}.
+${goalsBlock ? goalsBlock + "\n\n" : ""}Enabled categories: ${catList}.
 
 ${GRAMMAR_RULES}`,
   };
@@ -80,6 +133,8 @@ export function buildRewritePrompt(opts: {
 }): { system: string } {
   const opDescriptions: Record<RewriteOperation, string> = {
     improve: "Improve the clarity and quality of the writing while preserving meaning.",
+    continue:
+      "Continue writing: extend the text with 1–3 natural continuation sentences that follow the existing style, tone, and thread of thought. Do not repeat the original text in your output — output ONLY the continuation. Do not invent specific facts, statistics, names, or quotes; keep the continuation generic enough to stay true to what is already there.",
     shorter: "Make the text shorter while preserving all key information and meaning.",
     clearer: "Make the text clearer and easier to understand, while preserving meaning.",
     professional: "Rewrite the text to sound professional, while preserving meaning.",
@@ -211,6 +266,69 @@ Return ONLY JSON in this shape:
 {
   "rewritten": "<rewritten text>",
   "explanation": "<one short sentence describing the change>"
+}`,
+  };
+}
+
+/**
+ * Tone DETECTION (not transformation): ask the model to read the text
+ * and report which tones it projects, strongest first, with 0-1 scores.
+ * Mirrors Grammarly's tone detector output (emoji rendered by the UI).
+ */
+export function buildToneDetectPrompt(): { system: string } {
+  const tones = [
+    "confident", "friendly", "formal", "informal", "optimistic", "joyful",
+    "encouraging", "supportive", "excited", "curious", "hopeful", "proud",
+    "grateful", "calm", "assertive", "empathetic", "appreciative",
+    "respectful", "neutral", "blunt", "urgent", "serious", "sad",
+    "frustrated", "direct", "persuasive",
+  ];
+  return {
+    system: `${COMMON_RULES}
+
+You are now a TONE DETECTOR. Read the user's text and identify which tones it projects to a reader. Choose ONLY from this list:
+${tones.join(", ")}
+
+Rules:
+- Report 1 to 3 tones, strongest first.
+- "score" is your confidence that the reader would perceive that tone, between 0.0 and 1.0.
+- Judge the text as written; do not suggest how to change it.
+
+Return ONLY JSON in this shape:
+{
+  "tones": [
+    { "tone": "confident", "score": 0.85 },
+    { "tone": "direct", "score": 0.6 }
+  ]
+}`,
+  };
+}
+
+/**
+ * Synonyms / thesaurus (Grammarly parity: double-click a word).
+ * Context is included so senses are plausible; the model must never
+ * include the original word in the list.
+ */
+export function buildSynonymsPrompt(opts: {
+  word: string;
+  context?: string;
+}): { system: string } {
+  const contextBlock = opts.context
+    ? `\nThe word appears in this context: <context>${opts.context.slice(0, 300)}</context> — prefer senses that fit it.`
+    : "";
+  return {
+    system: `${COMMON_RULES}
+
+You are a thesaurus. Provide synonyms for the word given by the user.${contextBlock}
+
+Rules:
+- Provide 5 to 10 single words or short phrases (max 3 words each).
+- Only include synonyms that fit the part of speech of the original word.
+- NEVER include the original word itself.
+
+Return ONLY JSON in this shape:
+{
+  "synonyms": ["word1", "word2"]
 }`,
   };
 }
