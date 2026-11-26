@@ -15,7 +15,7 @@ Your text never leaves your computer. No cloud AI, no telemetry, no account. The
   <img src="docs/screenshots/suggestion-popup.png" alt="Inline grammar suggestion popup over a real email compose UI — the word 'don\'t have' is underlined and a popup offers Replace / Ignore / Add to dictionary" width="720" />
 </p>
 
-> **v1.8.0** — full Grammarly-parity release: floating assistant widget, performance scores, tone detection, writing stats, goals, synonyms, hover cards. [See what's new →](CHANGELOG.md)
+> **v1.9.0** — full Grammarly-parity release: floating assistant widget, performance scores, tone detection, writing stats, goals, synonyms, hover cards, **snippets (text expansion)**. [See what's new →](CHANGELOG.md)
 
 ---
 
@@ -35,6 +35,7 @@ Cloud-AI writing assistants have three problems: **privacy** (your draft cover l
 * **Tone detection** — 26-tone detector (Grammarly-aligned vocabulary) with local heuristic fallback when LM Studio is offline
 * **Goals** — dialect (US/UK/CA/AU), audience, formality, domain tune every check and rewrite
 * **Synonyms** — double-click any word in a web editor (or use the panel button) for a thesaurus card; click a synonym to replace the word
+* **Snippets (text expansion)** — type `;sig` (or any shortcut) anywhere you write and it instantly expands to your saved text; right-click any selection → “Save selection as snippet” to capture it (better than Grammarly: unlimited, per-device, works in every editor)
 * **Continue writing** — extend your draft in the panel with style-matched continuation
 * 25 rewrite operations · 19 tone transformations · custom instructions
 * Custom dictionary, per-site exclusions, per-site pause
@@ -42,7 +43,7 @@ Cloud-AI writing assistants have three problems: **privacy** (your draft cover l
 
 ### Grammarly parity matrix
 
-| Feature | Grammarly (cloud) | Local Writing Assistant (v1.8) |
+| Feature | Grammarly (cloud) | Local Writing Assistant (v1.9) |
 |---|---|---|
 | Real-time inline suggestions | ✓ | ✓ (debounced while typing) |
 | Floating widget (spinner → count badge → tone emoji) | ✓ | ✓ |
@@ -54,6 +55,7 @@ Cloud-AI writing assistants have three problems: **privacy** (your draft cover l
 | Writing stats + readability | ✓ | ✓ (Flesch + speaking time) |
 | Goals (dialect / audience / formality / domain) | ✓ (paid) | ✓ (free) |
 | Double-click synonyms | ✓ | ✓ |
+| Snippets (text expansion) | ✓ (quota, cloud sync) | ✓ (unlimited, local, instant) |
 | Continue writing | ✓ (quota) | ✓ (unlimited, local) |
 | Rewrite / shorten / tone ops | ✓ (quota) | 25 ops + 19 tones, unlimited |
 | Works offline | ✗ | ✓ (heuristic tone + stats; checks resume with LM Studio) |

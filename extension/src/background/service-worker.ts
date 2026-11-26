@@ -41,6 +41,7 @@ import {
   removeSiteExclusion,
   saveSettings,
   setHostPaused,
+  setPendingSnippet,
   validateSettings,
 } from "../shared/storage";
 import { sendNative } from "../shared/native-bridge";
@@ -99,6 +100,10 @@ const CONTEXT_MENU_ENTRIES: Array<{
   // No-op entries: handled explicitly by id in the click listener below.
   { id: "lwa-check", title: "Check writing now" },
   { id: "lwa-detect-tone", title: "Detect tone" },
+  // Better-than-Grammarly: capture any selection as a reusable text
+  // snippet. Stashes the selection in storage and opens the Options
+  // page with the snippet form pre-filled (user picks the shortcut).
+  { id: "lwa-save-snippet", title: "Save selection as snippet" },
 ];
 
 async function ensureDefaultContextMenus(): Promise<void> {
@@ -121,7 +126,11 @@ async function ensureDefaultContextMenus(): Promise<void> {
 // "lwa-check" and "lwa-detect-tone" have their own flows that must not
 // fall through to the generic rewrite path).
 chrome.contextMenus.onClicked.addListener((info, tab) => {
-  if (!info.selectionText || !tab?.id) return;
+  // Narrow once OUTSIDE the async closure — TypeScript loses the guard's
+  // narrowing inside `void (async () => …)`.
+  const selectionText = info.selectionText;
+  const tabId = tab?.id;
+  if (!selectionText || !tabId) return;
   const entry = CONTEXT_MENU_ENTRIES.find((e) => e.id === info.menuItemId);
   if (!entry) return;
   void (async () => {
@@ -130,35 +139,43 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
         // Poke the content script to run a check in the focused editor
         // (same flow as the Alt+Shift+L command). No panel is opened.
         chrome.tabs
-          .sendMessage(tab.id as number, { type: "trigger-check" })
+          .sendMessage(tabId, { type: "trigger-check" })
           .catch(() => undefined);
         return;
       case "lwa-detect-tone": {
         // Open the panel for this tab, then broadcast the selection so
         // the panel runs a tone detection on it.
-        await openSidePanelForTab(tab.id as number);
+        await openSidePanelForTab(tabId);
         chrome.runtime
           .sendMessage({
             type: "side-panel-detect-tone-request",
-            text: info.selectionText,
+            text: selectionText,
           })
           .catch(() => undefined);
+        return;
+      }
+      case "lwa-save-snippet": {
+        // Stash the selection for the Options page, then open it — the
+        // snippet form pre-fills from pendingSnippet and focuses the
+        // shortcut input (see src/options/index.ts).
+        await setPendingSnippet(selectionText);
+        chrome.runtime.openOptionsPage();
         return;
       }
       default:
         break;
     }
-    await openSidePanelForTab(tab.id as number);
+    await openSidePanelForTab(tabId);
     if (entry.op) {
       await chrome.runtime.sendMessage({
         type: "side-panel-rewrite",
         op: entry.op,
-        text: info.selectionText,
-        tabId: tab.id,
+        text: selectionText,
+        tabId,
       }).catch(() => undefined);
     } else {
       // "Rewrite…": let the panel pull the current selection itself.
-      chrome.tabs.sendMessage(tab.id as number, {
+      chrome.tabs.sendMessage(tabId, {
         type: "selection-for-rewrite-query",
       }).catch(() => undefined);
     }

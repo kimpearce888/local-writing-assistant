@@ -26,7 +26,9 @@ import {
   isSiteExcluded,
   isHostPaused,
   getSettings,
+  getSnippets,
 } from "../shared/storage";
+import { findSnippetMatch, Snippet } from "../shared/snippets";
 import { computeTextStats } from "../shared/analysis";
 import { hashText } from "../shared/text-utils";
 import { t } from "../shared/i18n";
@@ -80,6 +82,17 @@ let hoverTimer: number | undefined;
  *  handler is exactly what allowed the stale-timer bug to kill inline
  *  analysis (the async gap raced the "already scheduled?" check). */
 let settingsCache: ExtensionSettings | null = null;
+
+/** Snippets cache (text expansion, Grammarly parity) — refreshed at init
+ *  and on chrome.storage.onChanged("snippets"). Expansion must be instant
+ *  (no async gap) so a keystroke can never race the matcher. */
+let snippetsCache: Snippet[] = [];
+
+/** Per-editor suppression flag: replaceRange() itself fires an input
+ *  event, which would re-enter expansion and could cascade if a snippet
+ *  content happens to end with another shortcut. WeakMap so editors
+ *  removed from the page don't leak. */
+const suppressNextExpansion = new WeakMap<HTMLElement, boolean>();
 
 function isAllowedPage(): boolean {
   // chrome:// and chrome-extension:// pages are not user content.
@@ -174,7 +187,12 @@ function registerEditor(el: HTMLElement): void {
   // unsubscribe functions and call them on cleanup; otherwise SPAs
   // (Gmail, Slack, Notion) that never do a full page navigation would
   // leak listeners across view switches.
-  const inputUnsub = adapter.onInput(() => scheduleAnalysis(adapter));
+  const inputUnsub = adapter.onInput(() => {
+    // Snippet expansion must run BEFORE the debounced analysis — it is
+    // instant by design and rewrites the text the check will see.
+    tryExpandSnippet(adapter);
+    scheduleAnalysis(adapter);
+  });
   const focusUnsub = onFocus(el, () => {
     currentEditor = adapter;
     // Dock the floating widget unless the user turned it off.
@@ -234,6 +252,35 @@ function onFocus(el: HTMLElement, cb: () => void): () => void {
 function onBlur(el: HTMLElement, cb: () => void): () => void {
   el.addEventListener("blur", cb);
   return () => el.removeEventListener("blur", cb);
+}
+
+/* ---------------- Snippet expansion (Grammarly parity) ---------------- */
+
+/** Instantly expand `prefix + shortcut` → snippet content when the text
+ *  right before the caret matches. No debounce, no await in the hot
+ *  path: the matcher is pure and the caches are synchronous. */
+function tryExpandSnippet(adapter: EditorAdapter): void {
+  if (settingsCache?.enableSnippets === false) return;
+  if (snippetsCache.length === 0) return;
+  const el = adapter.el;
+  if (suppressNextExpansion.get(el) === true) {
+    suppressNextExpansion.set(el, false);
+    return;
+  }
+  const sel = adapter.getSelection();
+  // Expansion is a typing action — never rewrite an active selection.
+  if (sel.start !== sel.end) return;
+  const before = adapter.getText().slice(0, sel.start);
+  if (!before) return;
+  const prefix = settingsCache?.snippetTriggerPrefix ?? ";";
+  const match = findSnippetMatch(before, snippetsCache, prefix);
+  if (!match) return;
+  adapter.replaceRange(match.start, match.end, match.snippet.content);
+  suppressNextExpansion.set(el, true);
+  // The adapter's replaceRange fires its own input event; when it does,
+  // the handler above schedules analysis. If it doesn't (some wrapped
+  // React inputs), schedule explicitly — scheduleAnalysis is idempotent.
+  scheduleAnalysis(adapter);
 }
 
 /* ---------------- Per-editor analysis debouncer ----------------
@@ -650,6 +697,7 @@ engine = new SuggestionEngine({
   // Populate the synchronous settings cache BEFORE attaching editors —
   // the first keystroke already needs debounceMs.
   settingsCache = await getSettings().catch(() => null);
+  snippetsCache = await getSnippets().catch(() => []);
   if (!(await shouldRunOnSite())) return;
   await rescanPage();
 
@@ -771,6 +819,13 @@ engine = new SuggestionEngine({
             widget.dispose();
             widget = null;
           }
+        })
+        .catch(() => undefined);
+    }
+    if (Object.prototype.hasOwnProperty.call(changes, "snippets")) {
+      void getSnippets()
+        .then((list) => {
+          snippetsCache = list;
         })
         .catch(() => undefined);
     }

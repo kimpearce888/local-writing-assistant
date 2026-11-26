@@ -13,9 +13,17 @@ import {
   NATIVE_HOST_NAME,
   ToneMode,
 } from "./types";
+import {
+  SNIPPET_LIMITS,
+  Snippet,
+  makeSnippetId,
+  sanitizeSnippetInput,
+} from "./snippets";
 
 const KEY_SETTINGS = "settings";
 const KEY_DICTIONARY = "customDictionary";
+const KEY_SNIPPETS = "snippets";
+const KEY_PENDING_SNIPPET = "pendingSnippet";
 const KEY_EXCLUSIONS = "siteExclusions";
 const KEY_IGNORED_WORDS = "ignoredWords";
 const KEY_IGNORED_SUGGESTIONS = "ignoredSuggestions";
@@ -97,6 +105,7 @@ export function validateSettings(
       case "hoverSuggestions":
       case "doubleClickSynonyms":
       case "autoToneDetect":
+      case "enableSnippets":
         (out[key] as boolean) = coerceBool(v, DEFAULT_SETTINGS[key]);
         break;
       case "tone":
@@ -153,6 +162,15 @@ export function validateSettings(
       case "model":
         out.model = coerceString(v, DEFAULT_SETTINGS.model).slice(0, 200);
         break;
+      case "snippetTriggerPrefix": {
+        // 0-3 chars, whitespace-free — it must be typeable as a tight
+        // run right before the shortcut.
+        const s = coerceString(v, DEFAULT_SETTINGS.snippetTriggerPrefix)
+          .slice(0, 3)
+          .replace(/\s+/g, "");
+        out.snippetTriggerPrefix = s;
+        break;
+      }
     }
   }
   return out;
@@ -219,6 +237,93 @@ export async function setDictionary(words: string[]): Promise<string[]> {
 
 export async function clearDictionary(): Promise<void> {
   await chrome.storage.local.set({ [KEY_DICTIONARY]: [] });
+}
+
+/* ---------------- Snippets (text expansion) ---------------- */
+
+export async function getSnippets(): Promise<Snippet[]> {
+  const raw = await chrome.storage.local.get(KEY_SNIPPETS);
+  const list = raw[KEY_SNIPPETS];
+  if (!Array.isArray(list)) return [];
+  // Defensive re-validation on read: entries written by older versions
+  // or by hand-edited exports can never poison the matcher.
+  const out: Snippet[] = [];
+  for (const item of list) {
+    if (typeof item !== "object" || item === null) continue;
+    const rec = item as Record<string, unknown>;
+    const clean = sanitizeSnippetInput({
+      shortcut: rec.shortcut,
+      content: rec.content,
+      label: rec.label,
+    });
+    if (!clean) continue;
+    out.push({
+      id: typeof rec.id === "string" ? rec.id : makeSnippetId(),
+      ...clean,
+      createdAt: typeof rec.createdAt === "number" ? rec.createdAt : Date.now(),
+    });
+  }
+  return out.slice(0, SNIPPET_LIMITS.maxCount);
+}
+
+export async function addSnippet(
+  shortcut: unknown,
+  content: unknown,
+  label?: unknown,
+): Promise<{ ok: boolean; snippets: Snippet[] }> {
+  const clean = sanitizeSnippetInput({ shortcut, content, label });
+  const list = await getSnippets();
+  if (!clean) return { ok: false, snippets: list };
+  // Same shortcut updates the existing entry instead of duplicating.
+  const existingIdx = list.findIndex((s) => s.shortcut === clean.shortcut);
+  if (existingIdx >= 0) {
+    const next = [...list];
+    next[existingIdx] = {
+      ...list[existingIdx],
+      content: clean.content,
+      label: clean.label || list[existingIdx].label,
+    };
+    await chrome.storage.local.set({ [KEY_SNIPPETS]: next });
+    return { ok: true, snippets: next };
+  }
+  if (list.length >= SNIPPET_LIMITS.maxCount) {
+    return { ok: false, snippets: list };
+  }
+  const next = [
+    ...list,
+    { id: makeSnippetId(), ...clean, createdAt: Date.now() },
+  ];
+  await chrome.storage.local.set({ [KEY_SNIPPETS]: next });
+  return { ok: true, snippets: next };
+}
+
+export async function removeSnippet(id: string): Promise<Snippet[]> {
+  const list = await getSnippets();
+  const next = list.filter((s) => s.id !== id);
+  await chrome.storage.local.set({ [KEY_SNIPPETS]: next });
+  return next;
+}
+
+export async function clearSnippets(): Promise<void> {
+  await chrome.storage.local.set({ [KEY_SNIPPETS]: [] });
+}
+
+/** Pending snippet handed over from the context-menu
+ *  "Save selection as snippet" flow; consumed once by the Options page. */
+export async function setPendingSnippet(text: string): Promise<void> {
+  await chrome.storage.local.set({
+    [KEY_PENDING_SNIPPET]: { text: String(text).slice(0, SNIPPET_LIMITS.maxContentLen), ts: Date.now() },
+  });
+}
+
+export async function takePendingSnippet(): Promise<string | null> {
+  const raw = await chrome.storage.local.get(KEY_PENDING_SNIPPET);
+  const pending = raw[KEY_PENDING_SNIPPET] as { text?: unknown } | undefined;
+  await chrome.storage.local.remove(KEY_PENDING_SNIPPET);
+  if (!pending || typeof pending.text !== "string" || !pending.text.trim()) {
+    return null;
+  }
+  return pending.text;
 }
 
 /* ---------------- Site exclusions ---------------- */

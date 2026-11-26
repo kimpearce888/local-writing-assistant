@@ -42,7 +42,8 @@ import { computeTextStats } from "../shared/analysis";
 import { computeScoreBreakdown, scoreBand } from "../shared/score";
 import { toneEmoji } from "../shared/tone";
 import { createPerKeyDebouncer } from "../shared/debounce";
-import { getSettings } from "../shared/storage";
+import { getSettings, getSnippets } from "../shared/storage";
+import { findSnippetMatch, Snippet } from "../shared/snippets";
 
 const $ = (id: string) => document.getElementById(id) as HTMLElement | null;
 
@@ -931,6 +932,44 @@ async function refreshSettings(): Promise<void> {
   }
 }
 
+/* ---------------- Snippet expansion (Grammarly parity) ---------------- */
+
+/** Snippets cache — loaded at init, refreshed live via storage.onChanged
+ *  together with the settings cache. */
+let snippetsCache: Snippet[] = [];
+
+/** Programmatic value writes (our own expansion) must not re-enter the
+ *  expander on the input event the next replace dispatches — panel
+ *  textareas set .value directly which does NOT fire input, but page
+ *  adapters do; keep the guard symmetric with content/index.ts. */
+const suppressNextExpansion = new WeakMap<HTMLTextAreaElement, boolean>();
+
+/** Instantly expand `prefix + shortcut` → snippet content in one of the
+ *  panel's editable textareas. Mirrors tryExpandSnippet in the content
+ *  script but reads/writes the textarea directly. */
+function tryExpandTextareaSnippet(el: HTMLTextAreaElement): void {
+  if (settings.enableSnippets === false) return;
+  if (snippetsCache.length === 0) return;
+  if (suppressNextExpansion.get(el) === true) {
+    suppressNextExpansion.set(el, false);
+    return;
+  }
+  const end = el.selectionStart ?? 0;
+  if ((el.selectionEnd ?? 0) !== end) return;
+  const before = el.value.slice(0, end);
+  if (!before) return;
+  const match = findSnippetMatch(before, snippetsCache, settings.snippetTriggerPrefix ?? ";");
+  if (!match) return;
+  const caret = match.start + match.snippet.content.length;
+  el.value = el.value.slice(0, match.start) + match.snippet.content + el.value.slice(match.end);
+  try {
+    el.setSelectionRange(caret, caret);
+  } catch {
+    /* ignore */
+  }
+  suppressNextExpansion.set(el, true);
+}
+
 /* ---------------- Wiring ---------------- */
 
 function hookActions(): void {
@@ -947,6 +986,9 @@ function hookActions(): void {
   // auto-analysis pipeline.
   const selected = $("selectedText") as HTMLTextAreaElement | null;
   selected?.addEventListener("input", () => {
+    // Snippet expansion rewrites the box BEFORE state sync so stats,
+    // score and the pending check all see the expanded text.
+    if (selected) tryExpandTextareaSnippet(selected);
     syncWorkingText();
     updateStatsUi();
     updateScoreUi();
@@ -961,7 +1003,11 @@ function hookActions(): void {
       }
     }
   });
-  ($("resultText") as HTMLTextAreaElement | null)?.addEventListener("input", syncResultText);
+  ($("resultText") as HTMLTextAreaElement | null)?.addEventListener("input", (ev) => {
+    const el = ev.currentTarget as HTMLTextAreaElement | null;
+    if (el) tryExpandTextareaSnippet(el);
+    syncResultText();
+  });
 
   ($("checkNowBtn") as HTMLElement | null)?.addEventListener("click", () => {
     checkDebouncer.cancel("panel");
@@ -1060,10 +1106,22 @@ chrome.runtime.onMessage.addListener((msg) => {
   updateScoreUi();
   renderIssues();
   void refreshSettings();
+  try {
+    snippetsCache = await getSnippets();
+  } catch {
+    snippetsCache = [];
+  }
   // Live-refresh the cached settings (debounce delay, auto switches).
   try {
     chrome.storage?.onChanged?.addListener((changes, area) => {
       if (area === "local" && changes.settings) void refreshSettings();
+      if (area === "local" && changes.snippets) {
+        void getSnippets()
+          .then((list) => {
+            snippetsCache = list;
+          })
+          .catch(() => undefined);
+      }
     });
   } catch {
     /* chrome.storage not available in this context */

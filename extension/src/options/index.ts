@@ -10,18 +10,23 @@ import {
 } from "../shared/types";
 import {
   addSiteExclusion,
+  addSnippet,
   addWordToDictionary,
   clearDictionary,
   clearDiagnostics,
+  clearSnippets,
   getDiagnostics,
   getDictionary,
   getSettings,
   getSiteExclusions,
+  getSnippets,
   removeSiteExclusion,
+  removeSnippet,
   removeWordFromDictionary,
   resetSettings,
   saveSettings,
   setDictionary,
+  takePendingSnippet,
   validateSettings,
 } from "../shared/storage";
 
@@ -41,12 +46,15 @@ async function loadSettingsToUI(): Promise<void> {
   setCheck("hoverSuggestions", s.hoverSuggestions);
   setCheck("doubleClickSynonyms", s.doubleClickSynonyms);
   setCheck("autoToneDetect", s.autoToneDetect);
+  setCheck("enableSnippets", s.enableSnippets);
   setValue("tone", s.tone);
   setValue("dialect", s.dialect);
   setValue("audience", s.audience);
   setValue("formality", s.formality);
   setValue("domain", s.domain);
   setNumber("debounceMs", s.debounceMs);
+  setValue("snippetTriggerPrefix", s.snippetTriggerPrefix);
+  updateSnippetPrefixPreview();
   setNumber("maxTextSize", s.maxTextSize);
   setNumber("maxConcurrent", s.maxConcurrent);
   setNumber("minConfidence", s.minConfidence);
@@ -57,6 +65,7 @@ async function loadSettingsToUI(): Promise<void> {
   await refreshModels(s.model);
   await refreshDictionary();
   await refreshExclusions();
+  await refreshSnippets();
 }
 
 function setCheck(id: string, val: boolean): void {
@@ -102,6 +111,8 @@ async function gatherSettingsFromUI(): Promise<ExtensionSettings> {
     hoverSuggestions: readBool("hoverSuggestions"),
     doubleClickSynonyms: readBool("doubleClickSynonyms"),
     autoToneDetect: readBool("autoToneDetect"),
+    enableSnippets: readBool("enableSnippets"),
+    snippetTriggerPrefix: readStr("snippetTriggerPrefix"),
     tone: readStr("tone") as ExtensionSettings["tone"],
     dialect: readStr("dialect") as ExtensionSettings["dialect"],
     audience: readStr("audience") as ExtensionSettings["audience"],
@@ -190,6 +201,46 @@ async function refreshDictionary(): Promise<void> {
   }
 }
 
+async function refreshSnippets(): Promise<void> {
+  const list = $("snippetList");
+  if (!list) return;
+  const items = await getSnippets();
+  list.innerHTML = "";
+  if (items.length === 0) {
+    const li = document.createElement("li");
+    li.textContent = "(no snippets)";
+    li.style.color = "var(--muted)";
+    list.appendChild(li);
+    return;
+  }
+  for (const s of items) {
+    const li = document.createElement("li");
+    const code = document.createElement("code");
+    code.textContent = `;${s.shortcut}`;
+    const span = document.createElement("span");
+    span.textContent = s.label ? `${s.label} — ` : "";
+    span.appendChild(document.createTextNode(s.content.length > 80 ? `${s.content.slice(0, 80)}…` : s.content));
+    span.style.color = "var(--muted)";
+    const btn = document.createElement("button");
+    btn.textContent = "Remove";
+    btn.addEventListener("click", async () => {
+      await removeSnippet(s.id);
+      await refreshSnippets();
+    });
+    li.appendChild(code);
+    li.appendChild(span);
+    li.appendChild(btn);
+    list.appendChild(li);
+  }
+}
+
+function updateSnippetPrefixPreview(): void {
+  const el = $("snippetPrefixPreview");
+  if (!el) return;
+  const raw = ($("snippetTriggerPrefix") as HTMLInputElement | null)?.value ?? ";";
+  el.textContent = raw || "";
+}
+
 async function refreshExclusions(): Promise<void> {
   const list = $("exclusionList");
   if (!list) return;
@@ -253,6 +304,31 @@ function hookControls(): void {
     await clearDictionary();
     await refreshDictionary();
   });
+  ($("addSnippet") as HTMLElement).addEventListener("click", async () => {
+    const shortcut = ($("newSnippetShortcut") as HTMLInputElement).value;
+    const label = ($("newSnippetLabel") as HTMLInputElement).value;
+    const content = ($("newSnippetContent") as HTMLTextAreaElement).value;
+    const res = await addSnippet(shortcut, content, label);
+    if (!res.ok) {
+      const bad = $("snippetAddError");
+      if (bad) {
+        bad.hidden = false;
+        bad.textContent = "Snippet not saved — shortcut must be 1-32 letters/digits (no spaces) and expansion text must be non-empty.";
+      }
+      return;
+    }
+    const bad = $("snippetAddError");
+    if (bad) bad.hidden = true;
+    ($("newSnippetShortcut") as HTMLInputElement).value = "";
+    ($("newSnippetLabel") as HTMLInputElement).value = "";
+    ($("newSnippetContent") as HTMLTextAreaElement).value = "";
+    await refreshSnippets();
+  });
+  ($("clearSnippets") as HTMLElement).addEventListener("click", async () => {
+    await clearSnippets();
+    await refreshSnippets();
+  });
+  ($("snippetTriggerPrefix") as HTMLElement)?.addEventListener("input", updateSnippetPrefixPreview);
   ($("exportDict") as HTMLElement).addEventListener("click", async () => {
     const words = await getDictionary();
     downloadJson("dictionary.json", words);
@@ -392,6 +468,22 @@ function pickFile(cb: (text: string) => void): void {
 (async function init() {
   hookControls();
   await loadSettingsToUI();
+  // Context-menu "Save selection as snippet" hand-off: prefill the form
+  // from the pending snippet and focus the shortcut input. takePendingSnippet
+  // is consume-once so a stale selection can never reappear on later visits.
+  try {
+    const pending = await takePendingSnippet();
+    if (pending) {
+      const content = $("newSnippetContent") as HTMLTextAreaElement | null;
+      if (content) {
+        content.value = pending;
+        content.scrollIntoView({ block: "center" });
+      }
+      ($("newSnippetShortcut") as HTMLInputElement | null)?.focus();
+    }
+  } catch {
+    /* storage unavailable — skip prefill */
+  }
   // Support deep-link to diagnostics section (#diagnostics).
   if (location.hash === "#diagnostics") {
     const card = $("diagnosticsCard");

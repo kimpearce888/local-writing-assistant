@@ -216,6 +216,10 @@ export interface ExtensionSettings {
   hoverSuggestions: boolean;
   doubleClickSynonyms: boolean;
   autoToneDetect: boolean;
+  // Snippets (text expansion, Grammarly parity)
+  enableSnippets: boolean;
+  /** 0-3 chars typed right before a snippet shortcut, default ";". */
+  snippetTriggerPrefix: string;
   // Performance
   debounceMs: number;
   maxTextSize: number;
@@ -247,6 +251,8 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   hoverSuggestions: true,
   doubleClickSynonyms: true,
   autoToneDetect: true,
+  enableSnippets: true,
+  snippetTriggerPrefix: ";",
   debounceMs: 700,
   maxTextSize: 4000,
   maxConcurrent: 2,

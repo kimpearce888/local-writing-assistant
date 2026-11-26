@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+## [1.9.0] — 2026-11-26
+
+### Added
+- **Snippets (text expansion)** — the last missing Grammarly-parity feature, implemented locally and better:
+  - Type `;shortcut` anywhere you write (any web editor + both side-panel editors) and it instantly expands to your saved text. Instant by design — no debounce, no async in the hot path (pure matcher + synchronous caches).
+  - Strict matching to avoid false positives: the character before the trigger run must be a word boundary (start of text, whitespace, punctuation), longest-shortcut-first resolution, case-insensitive.
+  - **Save selection as snippet** (better than Grammarly): right-click any selection → "Save selection as snippet" — the Options page opens with the expansion text pre-filled, you pick the shortcut.
+  - Options → Snippets: add (shortcut + optional label + content), remove, clear all; same-shortcut entries update in place; 100-snippet / 5,000-char caps enforced by sanitization on every write and re-validated on every read.
+  - Configurable trigger prefix (`snippetTriggerPrefix`, 0–3 chars, default `;`) and `enableSnippets` toggle in Options.
+  - Same-shortcut CRUD + pending-snippet hand-off live in `shared/storage.ts`; the matcher lives in the new pure module `shared/snippets.ts` (16 new unit tests, 144 total).
+
+### Fixed
+- Service worker context-menu click handler: `info.selectionText`/`tab.id` narrowing now happens once outside the async closure (TypeScript strict-mode build error introduced scope-drift protection).
+
 ## [1.8.0] — 2026-11-25
 
 Grammarly-parity release. Everything below runs 100% locally — no new permissions, no new network endpoints, no telemetry.
