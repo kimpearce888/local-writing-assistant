@@ -105,6 +105,7 @@ export function validateSettings(
       case "hoverSuggestions":
       case "doubleClickSynonyms":
       case "autoToneDetect":
+      case "enableLocalChecks":
       case "enableSnippets":
         (out[key] as boolean) = coerceBool(v, DEFAULT_SETTINGS[key]);
         break;

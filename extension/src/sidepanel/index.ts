@@ -42,7 +42,7 @@ import { computeTextStats } from "../shared/analysis";
 import { computeScoreBreakdown, scoreBand } from "../shared/score";
 import { toneEmoji } from "../shared/tone";
 import { createPerKeyDebouncer } from "../shared/debounce";
-import { getSettings, getSnippets } from "../shared/storage";
+import { addWordToDictionary, getSettings, getSnippets, ignoreWord } from "../shared/storage";
 import { findSnippetMatch, Snippet } from "../shared/snippets";
 
 const $ = (id: string) => document.getElementById(id) as HTMLElement | null;
@@ -395,6 +395,30 @@ function buildIssueCard(issue: Issue, index: number): HTMLElement {
   dismiss.addEventListener("click", () => dismissIssue(index));
   row.append(orig, arrow, edit, accept, dismiss);
 
+  // Spelling issues gain the same two actions the inline popup has
+  // (parity): teach the custom dictionary the word, or permanently
+  // ignore it. Either way the card is dismissed immediately and the
+  // word is filtered out of future analyses.
+  if (issue.category === "spelling" && issue.original.trim().length > 0) {
+    const addDict = document.createElement("button");
+    addDict.type = "button";
+    addDict.className = "btn subtle";
+    addDict.textContent = "Add to dictionary";
+    addDict.addEventListener("click", () => {
+      void addWordToDictionary(issue.original.trim());
+      dismissIssue(index);
+    });
+    const ignoreW = document.createElement("button");
+    ignoreW.type = "button";
+    ignoreW.className = "btn subtle";
+    ignoreW.textContent = "Ignore word";
+    ignoreW.addEventListener("click", () => {
+      void ignoreWord(issue.original.trim());
+      dismissIssue(index);
+    });
+    row.append(addDict, ignoreW);
+  }
+
   li.append(pill, expl, row);
   return li;
 }
@@ -517,6 +541,8 @@ interface PanelCheckResponse {
   issues?: Issue[];
   analyzedText?: string;
   error?: string;
+  /** True when the result came from the offline fast-check (host/LLM unreachable). */
+  offline?: boolean;
 }
 
 function schedulePanelCheck(force = false): void {
@@ -555,7 +581,11 @@ async function runPanelCheck(): Promise<void> {
   renderIssues();
   updateStatsUi();
   updateScoreUi();
-  const chipLabel = issues.length > 0 ? `${issues.length} suggestions` : "No issues";
+  const chipLabel = res.offline
+    ? `${issues.length} suggestions · offline fast-check`
+    : issues.length > 0
+      ? `${issues.length} suggestions`
+      : "No issues";
   if (res.analyzedText && res.analyzedText !== state.text) {
     // The SW clamps the analysis by UTF-8 bytes — offsets refer to the
     // analyzed prefix. Still render (the panel text is usually within

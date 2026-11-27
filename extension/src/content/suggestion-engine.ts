@@ -26,6 +26,7 @@ import { buildGrammarPrompt } from "../shared/prompts";
 import { parseGrammarResponse } from "../shared/ai-validation";
 import { hashText, truncateToUtf8Bytes } from "../shared/text-utils";
 import { Semaphore } from "../shared/concurrency";
+import { localCheck, mergeIssues } from "../shared/local-check";
 import { getSettings, getDictionary, getIgnoredWords, ignoreSuggestionOnce } from "../shared/storage";
 
 /**
@@ -68,6 +69,8 @@ export interface AnalyzeResult {
   editorId: string;
   textHash: string;
   issues: TaggedIssue[];
+  /** "ai" = model result (cacheable); "local" = offline fast-check fallback. */
+  source: "ai" | "local";
 }
 
 export interface SuggestionEngineCallbacks {
@@ -134,9 +137,29 @@ export class SuggestionEngine {
     // the REQUESTING adapter before handing it on, otherwise two editors
     // with identical text would both render the first editor's issues and
     // a Replace click in editor B could mutate editor A's text.
+    // The cache stores AI-ONLY issues; fresh local fast-check issues are
+    // merged in at hand-off time so dictionary/setting changes apply even
+    // when the model result is cached.
     const cached = this.cache.get(hash);
     if (cached) {
-      this.cbs.onAnalyzeComplete(this.retagResult(cached, adapter));
+      const [dictionary, ignoredWords] = await Promise.all([
+        getDictionary(),
+        getIgnoredWords(),
+      ]);
+      const local = this.buildLocalIssues(
+        text,
+        settings,
+        dictionary,
+        ignoredWords,
+        hash,
+        adapter.getEditorIdentity(),
+      );
+      this.cbs.onAnalyzeComplete(
+        this.retagResult(
+          { ...cached, issues: mergeIssues(cached.issues, local), source: "ai" },
+          adapter,
+        ),
+      );
       return;
     }
 
@@ -150,17 +173,22 @@ export class SuggestionEngine {
     this.cbs.onAnalyzeStart(adapter.getEditorIdentity());
 
     try {
-      const result = await this.limiter.run(() =>
+      const outcome = await this.limiter.run(() =>
         this._doAnalyze(adapter, text, hash, requestId, controller),
       );
       if (controller.signal.aborted) return;
-      this.cache.set(hash, result);
-      // Cap cache size — keep last 64 entries.
-      if (this.cache.size > 64) {
-        const firstKey = this.cache.keys().next().value;
-        if (firstKey) this.cache.delete(firstKey);
+      // Only AI results are cached. Local-only fallbacks must not poison
+      // the cache — otherwise a temporary outage would keep serving "no
+      // model result" for identical text even after LM Studio returns.
+      if (outcome.aiOnly) {
+        this.cache.set(hash, outcome.aiOnly);
+        // Cap cache size — keep last 64 entries.
+        if (this.cache.size > 64) {
+          const firstKey = this.cache.keys().next().value;
+          if (firstKey) this.cache.delete(firstKey);
+        }
       }
-      this.cbs.onAnalyzeComplete(this.retagResult(result, adapter));
+      this.cbs.onAnalyzeComplete(this.retagResult(outcome.merged, adapter));
     } catch (e: unknown) {
       if (controller.signal.aborted) return;
       const err = e as { code?: string; message?: string };
@@ -204,13 +232,50 @@ export class SuggestionEngine {
     };
   }
 
+  /**
+   * Offline fast-check issues for this text, already filtered by the
+   * same gates as model issues (category toggles, enableLocalChecks,
+   * min confidence, custom dictionary, ignored words). Offsets refer to
+   * the FULL editor text — the truncation below only clamps the model
+   * payload, and local rules are cheap enough to run on everything.
+   */
+  private buildLocalIssues(
+    text: string,
+    settings: { enableLocalChecks: boolean; checkSpelling: boolean; checkGrammar: boolean; checkPunctuation: boolean; minConfidence: number },
+    dictionary: string[],
+    ignoredWords: string[],
+    hash: string,
+    editorId: string,
+  ): TaggedIssue[] {
+    if (!settings.enableLocalChecks) return [];
+    const raw = localCheck(text, {
+      spelling: settings.checkSpelling,
+      grammar: settings.checkGrammar,
+      punctuation: settings.checkPunctuation,
+    });
+    const out: TaggedIssue[] = [];
+    for (const issue of raw) {
+      if (issue.confidence < settings.minConfidence) continue;
+      const lower = issue.original.trim().toLowerCase();
+      if (lower && dictionary.some((d) => d.toLowerCase() === lower)) continue;
+      if (lower && ignoredWords.includes(lower)) continue;
+      out.push({
+        ...issue,
+        editorId,
+        textHash: hash,
+        sourceSubstring: text.slice(issue.start, issue.end),
+      });
+    }
+    return out;
+  }
+
   private async _doAnalyze(
     adapter: EditorAdapter,
     text: string,
     hash: string,
     requestId: string,
     controller: AbortController,
-  ): Promise<AnalyzeResult> {
+  ): Promise<{ merged: AnalyzeResult; aiOnly: AnalyzeResult | null }> {
     const settings = await getSettings();
     const prompt = buildGrammarPrompt({
       categories: {
@@ -240,21 +305,67 @@ export class SuggestionEngine {
     // apply time.
     const analyzedText = truncateToUtf8Bytes(text, LIMITS.maxAnalyzeTextBytes).text;
 
-    const resp: NativeResponse = await sendNativeViaSW(
-      "grammar_check",
-      {
-        text: analyzedText,
-        systemPrompt: prompt.system,
-        model: settings.model,
-        temperature: settings.temperature,
-        maxTokens: settings.maxTokens,
-        timeoutMs: settings.requestTimeoutMs,
-      },
-      settings.requestTimeoutMs + 5000,
+    // Local fast-check issues — computed BEFORE the model round trip so
+    // they are available both for merging and as the offline fallback.
+    const [dictionary, ignoredWords] = await Promise.all([
+      getDictionary(),
+      getIgnoredWords(),
+    ]);
+    const localIssues = this.buildLocalIssues(
+      text,
+      settings,
+      dictionary,
+      ignoredWords,
+      hash,
+      adapter.getEditorIdentity(),
     );
+
+    let resp: NativeResponse;
+    try {
+      resp = await sendNativeViaSW(
+        "grammar_check",
+        {
+          text: analyzedText,
+          systemPrompt: prompt.system,
+          model: settings.model,
+          temperature: settings.temperature,
+          maxTokens: settings.maxTokens,
+          timeoutMs: settings.requestTimeoutMs,
+        },
+        settings.requestTimeoutMs + 5000,
+      );
+    } catch (e: unknown) {
+      // Host/bridge failure: fall back to local fast-check issues when we
+      // have any, so the user still gets real suggestions offline.
+      if (localIssues.length > 0 && !controller.signal.aborted) {
+        return {
+          merged: {
+            editorId: adapter.getEditorIdentity(),
+            textHash: hash,
+            issues: localIssues,
+            source: "local",
+          },
+          aiOnly: null,
+        };
+      }
+      throw e;
+    }
 
     if (controller.signal.aborted) throw { code: "ABORTED" };
     if (!resp.ok) {
+      // Same fallback path when the host answered with an error
+      // (LM Studio offline, no model, timeout, …).
+      if (localIssues.length > 0) {
+        return {
+          merged: {
+            editorId: adapter.getEditorIdentity(),
+            textHash: hash,
+            issues: localIssues,
+            source: "local",
+          },
+          aiOnly: null,
+        };
+      }
       throw {
         code: resp.errorCode ?? "NATIVE_HOST_UNAVAILABLE",
         message: resp.error ?? "native host error",
@@ -264,12 +375,6 @@ export class SuggestionEngine {
     if (!data || typeof data.raw !== "string") {
       throw { code: "INVALID_AI_RESPONSE", message: "missing raw output" };
     }
-
-    // Filter against local dictionary / ignored words.
-    const [dictionary, ignoredWords] = await Promise.all([
-      getDictionary(),
-      getIgnoredWords(),
-    ]);
 
     let parsed: GrammarCheckResponse;
     try {
@@ -282,7 +387,7 @@ export class SuggestionEngine {
       };
     }
 
-    // Apply local filters (dictionary, ignored words, min confidence).
+    // Apply local filters (min confidence, dictionary, ignored words).
     const filtered: TaggedIssue[] = [];
     for (const issue of parsed.issues) {
       if (issue.confidence < settings.minConfidence) continue;
@@ -297,10 +402,21 @@ export class SuggestionEngine {
       });
     }
 
+    // Model issues win overlaps (they are context-aware); local issues
+    // fill every span the model missed. Sorted by start for the UI.
     return {
-      editorId: adapter.getEditorIdentity(),
-      textHash: hash,
-      issues: filtered,
+      merged: {
+        editorId: adapter.getEditorIdentity(),
+        textHash: hash,
+        issues: mergeIssues(filtered, localIssues),
+        source: "ai",
+      },
+      aiOnly: {
+        editorId: adapter.getEditorIdentity(),
+        textHash: hash,
+        issues: filtered,
+        source: "ai",
+      },
     };
   }
 

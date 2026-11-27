@@ -95,6 +95,14 @@ describe("validateSettings", () => {
     // Disabling is a boolean gate only — data is never touched here.
   });
 
+  it("coerces enableLocalChecks strictly (offline fast-check gate)", () => {
+    expect(validateSettings({ enableLocalChecks: false })).toEqual({ enableLocalChecks: false });
+    expect(validateSettings({ enableLocalChecks: true })).toEqual({ enableLocalChecks: true });
+    // Non-boolean values fall back to the default (true), key kept.
+    expect(validateSettings({ enableLocalChecks: "yes" })).toEqual({ enableLocalChecks: true });
+    expect(validateSettings({ enableLocalChecks: 0 })).toEqual({ enableLocalChecks: true });
+  });
+
   it("sanitizes snippetTriggerPrefix (0-3 chars, whitespace stripped)", () => {
     expect(validateSettings({ snippetTriggerPrefix: ";" })).toEqual({ snippetTriggerPrefix: ";" });
     expect(validateSettings({ snippetTriggerPrefix: "@@" })).toEqual({ snippetTriggerPrefix: "@@" });

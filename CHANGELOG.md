@@ -4,11 +4,18 @@ All notable changes to Local Writing Assistant are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.10.0] — 2026-11-27
 
 ### Added
+- **Offline fast-check** — the engine that makes the assistant work even when LM Studio is offline, and makes it *instant* when it isn't:
+  - New pure rule module `shared/local-check.ts` (no chrome APIs, no DOM, no network — same leaf-module contract as `snippets.ts`): ~90 deterministic high-precision rules — unambiguous misspellings (teh→the, recieve→receive, definately→definitely, …), doubled words ("is is"), a/an agreement with sound-aware exceptions (a university / an hour / an x-ray), "should/could/would/must/might of" → "… have", the standalone lowercase pronoun "i", space before punctuation, missing space after comma, runs of double spaces.
+  - Precision-first design: context-dependent calls (its/it's, your/you're, then/than…) are deliberately left to the model — a wrong local underline is worse than a missing one. Legitimate doubles ("had had", "that that"), enumerations ("part i", "(i)"), "i.e.", URLs, thousand separators, decimals, and Markdown double-space line breaks are all protected.
+  - Merged into every check: model issues win overlaps (context-aware), local rules fill every span the model missed — underlines appear the moment typing pauses, before the model round trip finishes.
+  - **True offline mode**: when the native host or LM Studio is unreachable, the local issues are returned as a successful result instead of an error — the side panel shows "N suggestions · offline fast-check" and the inline widget keeps a live count. The result is never cached, so the model result takes over cleanly once LM Studio returns.
+  - Honors every existing gate: category toggles (spelling/grammar/punctuation), min confidence, custom dictionary, ignored words, and the new `enableLocalChecks` toggle (Options → writing checks).
+- **Add to dictionary / Ignore word on side-panel cards** — spelling cards in the panel now have the same two actions the inline popup always had; the word is filtered from future analyses and the card dismisses immediately.
 - **Snippets export/import** (Options → Snippets): download all snippets as `snippets.json`, import from file — every entry re-validated through the same sanitization gate as manual adds; invalid entries are skipped with a count. Brings snippets to the same data-lifecycle standard as the custom dictionary (GAADS section 8: retention, export, safe round-trip).
-- Settings validation tests for the snippets fields (`enableSnippets` strict boolean coercion, `snippetTriggerPrefix` 0–3 chars + whitespace stripping). 146 unit tests total.
+- 53 new unit tests for the rule engine (offset invariant, every exception, category toggles, `mergeIssues`) + settings validation for `enableLocalChecks`. 199 unit tests total.
 
 ## [1.9.0] — 2026-11-26
 

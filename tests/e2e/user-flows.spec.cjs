@@ -54,6 +54,40 @@ test.describe("User-reported flows", () => {
     }
   });
 
+  test("offline fast-check flags local-rule issues the mock AI does not cover", async () => {
+    const { context } = await launchExtensionContext();
+    try {
+      const port = await ensureHttpServer();
+      const page = await context.newPage();
+      await page.goto(`http://127.0.0.1:${port}/textarea.html`, {
+        waitUntil: "domcontentloaded",
+      });
+
+      // The mock AI returns an EMPTY issue list for this text (it only
+      // flags "don't"), so every inline highlight here must come from
+      // the v1.10.0 offline fast-check rules — proof the local engine
+      // feeds the same highlight pipeline as the model.
+      await page.fill("#editor", "");
+      await page.focus("#editor");
+      await page.keyboard.type("teh report is recieved", { delay: 25 });
+
+      await page.waitForSelector("[data-lwa-highlight][data-issue-id]", {
+        timeout: 15_000,
+      });
+      // Two distinct spans must be underlined ("teh" + "recieved") —
+      // proves per-span rules, not a single global marker.
+      await expect
+        .poll(
+          async () =>
+            (await page.$$("[data-lwa-highlight][data-issue-id]")).length,
+          { timeout: 10_000 },
+        )
+        .toBeGreaterThan(1);
+    } finally {
+      await context.close();
+    }
+  });
+
   test("side panel: write directly, run an action, edit the result", async () => {
     const { context } = await launchExtensionContext();
     try {

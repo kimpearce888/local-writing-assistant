@@ -216,6 +216,8 @@ export interface ExtensionSettings {
   hoverSuggestions: boolean;
   doubleClickSynonyms: boolean;
   autoToneDetect: boolean;
+  // Offline fast-check — deterministic local rules (v1.10.0)
+  enableLocalChecks: boolean;
   // Snippets (text expansion, Grammarly parity)
   enableSnippets: boolean;
   /** 0-3 chars typed right before a snippet shortcut, default ";". */
@@ -251,6 +253,7 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   hoverSuggestions: true,
   doubleClickSynonyms: true,
   autoToneDetect: true,
+  enableLocalChecks: true,
   enableSnippets: true,
   snippetTriggerPrefix: ";",
   debounceMs: 700,

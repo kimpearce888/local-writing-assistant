@@ -53,6 +53,7 @@ import {
 } from "../shared/ai-validation";
 import { detectTone } from "../shared/tone";
 import { truncateToUtf8Bytes } from "../shared/text-utils";
+import { localCheck, mergeIssues } from "../shared/local-check";
 
 const SIDE_PANEL_TAB_KEY = "sidePanelTabId";
 const SUGGESTION_COUNT_PREFIX = "suggestionCount:";
@@ -583,10 +584,16 @@ function isWritingInsights(v: unknown): v is WritingInsights {
  * Mirrors the inline suggestion-engine pipeline exactly: same prompt
  * (categories + writing goals), same UTF-8 byte truncation, and the same
  * local filters (min confidence, custom dictionary, ignored words).
+ *
+ * v1.10.0: offline fast-check issues are computed locally (deterministic
+ * rules) and merged under the model's issues; when the host/LLM is
+ * unreachable the local issues are returned as a successful result
+ * flagged `offline: true` so the panel shows real suggestions instead of
+ * an error.
  */
 async function handlePanelGrammarCheck(
   text: unknown,
-): Promise<{ ok: boolean; issues?: Issue[]; analyzedText?: string; error?: string }> {
+): Promise<{ ok: boolean; issues?: Issue[]; analyzedText?: string; error?: string; offline?: boolean }> {
   try {
     const settings = await getSettings();
     if (!settings.enabled) {
@@ -619,29 +626,55 @@ async function handlePanelGrammarCheck(
         domain: settings.domain,
       },
     });
-    const resp: NativeResponse = await sendNative(
-      "grammar_check",
-      {
-        text: analyzed,
-        systemPrompt: prompt.system,
-        model: settings.model,
-        temperature: settings.temperature,
-        maxTokens: settings.maxTokens,
-        timeoutMs: settings.requestTimeoutMs,
-      },
-      settings.requestTimeoutMs + 5000,
-    );
+    const [dictionary, ignored] = await Promise.all([
+      getDictionary(),
+      getIgnoredWords(),
+    ]);
+    // Offline fast-check issues (same filter chain as below).
+    const localIssues: Issue[] = settings.enableLocalChecks
+      ? localCheck(analyzed, {
+          spelling: settings.checkSpelling,
+          grammar: settings.checkGrammar,
+          punctuation: settings.checkPunctuation,
+        }).filter((i) => {
+          if (i.confidence < settings.minConfidence) return false;
+          const lower = i.original.trim().toLowerCase();
+          if (lower && dictionary.some((d) => d.toLowerCase() === lower)) return false;
+          if (lower && ignored.includes(lower)) return false;
+          return true;
+        })
+      : [];
+
+    let resp: NativeResponse;
+    try {
+      resp = await sendNative(
+        "grammar_check",
+        {
+          text: analyzed,
+          systemPrompt: prompt.system,
+          model: settings.model,
+          temperature: settings.temperature,
+          maxTokens: settings.maxTokens,
+          timeoutMs: settings.requestTimeoutMs,
+        },
+        settings.requestTimeoutMs + 5000,
+      );
+    } catch (e: unknown) {
+      if (localIssues.length > 0) {
+        return { ok: true, issues: localIssues, analyzedText: analyzed, offline: true };
+      }
+      return { ok: false, error: String(e) };
+    }
     if (!resp.ok) {
+      if (localIssues.length > 0) {
+        return { ok: true, issues: localIssues, analyzedText: analyzed, offline: true };
+      }
       return { ok: false, error: resp.error ?? "native host error" };
     }
     const parsed = parseGrammarResponse(
       (resp.data as { raw?: string }).raw ?? "",
       analyzed,
     );
-    const [dictionary, ignored] = await Promise.all([
-      getDictionary(),
-      getIgnoredWords(),
-    ]);
     // Same filter chain as suggestion-engine.ts: min confidence, then
     // dictionary/ignored-word lookups on the lowercased trimmed original.
     const issues = parsed.issues.filter((i) => {
@@ -651,7 +684,8 @@ async function handlePanelGrammarCheck(
       if (lower && ignored.includes(lower)) return false;
       return true;
     });
-    return { ok: true, issues, analyzedText: analyzed };
+    // Model issues win overlaps; local issues fill the gaps.
+    return { ok: true, issues: mergeIssues(issues, localIssues), analyzedText: analyzed };
   } catch (e: unknown) {
     return { ok: false, error: String(e) };
   }

@@ -1,9 +1,9 @@
 # Local Writing Assistant
 
 [![CI](https://github.com/kimpearce888/local-writing-assistant/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/kimpearce888/local-writing-assistant/actions/workflows/ci.yml)
-[![E2E](https://img.shields.io/badge/E2E-10%2F10%20passing-brightgreen.svg)](#testing)
+[![E2E](https://img.shields.io/badge/E2E-13%2F13%20passing-brightgreen.svg)](#testing)
 [![Release](https://github.com/kimpearce888/local-writing-assistant/actions/workflows/release.yml/badge.svg)](https://github.com/kimpearce888/local-writing-assistant/releases)
-[![Version](https://img.shields.io/badge/version-1.8.0-blue.svg)](https://github.com/kimpearce888/local-writing-assistant/releases/tag/v1.8.0)
+[![Version](https://img.shields.io/badge/version-1.10.0-blue.svg)](https://github.com/kimpearce888/local-writing-assistant/releases/tag/v1.10.0)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![No cloud](https://img.shields.io/badge/runtime-no%20cloud%20AI-1f6feb.svg)](PRIVACY.md)
 
@@ -15,7 +15,7 @@ Your text never leaves your computer. No cloud AI, no telemetry, no account. The
   <img src="docs/screenshots/suggestion-popup.png" alt="Inline grammar suggestion popup over a real email compose UI — the word 'don\'t have' is underlined and a popup offers Replace / Ignore / Add to dictionary" width="720" />
 </p>
 
-> **v1.9.0** — full Grammarly-parity release: floating assistant widget, performance scores, tone detection, writing stats, goals, synonyms, hover cards, **snippets (text expansion)**. [See what's new →](CHANGELOG.md)
+> **v1.10.0** — **offline fast-check**: a deterministic local rule engine catches common errors instantly while you type (zero latency) and keeps real suggestions working even when LM Studio is offline — plus snippets export/import. [See what's new →](CHANGELOG.md)
 
 ---
 
@@ -28,6 +28,7 @@ Cloud-AI writing assistants have three problems: **privacy** (your draft cover l
 ## What it does
 
 * **Real-time checking while you type** — debounced grammar · spelling · punctuation · clarity · word-choice analysis in any web editor, with colored inline underlines and hover-to-open suggestion cards
+* **Offline fast-check** — ~90 deterministic local rules (common misspellings, doubled words, a/an agreement, “should of”, spacing/punctuation) fire instantly with zero latency and keep working with LM Studio offline; model issues win overlaps, local rules fill the gaps (better than Grammarly: it cannot check at all without the cloud)
 * **Floating assistant widget** — Grammarly-style circle docked to the focused editor: spins while checking, shows the suggestion count badge, your detected-tone emoji, and a quick menu (open panel, check now, detect tone, pause site, settings)
 * **Editable writing panel** — a full writing surface in the side panel: write there directly, see issues as editable suggestion cards (tweak any replacement before applying), Accept / Accept all / Dismiss
 * **Performance scores** — Overall + Correctness / Clarity / Engagement / Delivery (Grammarly's four dimensions), computed locally from your issue list
@@ -43,7 +44,7 @@ Cloud-AI writing assistants have three problems: **privacy** (your draft cover l
 
 ### Grammarly parity matrix
 
-| Feature | Grammarly (cloud) | Local Writing Assistant (v1.9) |
+| Feature | Grammarly (cloud) | Local Writing Assistant (v1.10) |
 |---|---|---|
 | Real-time inline suggestions | ✓ | ✓ (debounced while typing) |
 | Floating widget (spinner → count badge → tone emoji) | ✓ | ✓ |
@@ -58,7 +59,7 @@ Cloud-AI writing assistants have three problems: **privacy** (your draft cover l
 | Snippets (text expansion) | ✓ (quota, cloud sync) | ✓ (unlimited, local, instant) |
 | Continue writing | ✓ (quota) | ✓ (unlimited, local) |
 | Rewrite / shorten / tone ops | ✓ (quota) | 25 ops + 19 tones, unlimited |
-| Works offline | ✗ | ✓ (heuristic tone + stats; checks resume with LM Studio) |
+| Works offline | ✗ | ✓ (offline fast-check + heuristic tone + stats — real suggestions with LM Studio off) |
 | Text leaves your device | ✓ | **never** |
 
 <table>

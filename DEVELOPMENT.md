@@ -135,7 +135,7 @@ The Windows EXE is a standalone ~5 MB binary — no Go runtime needed on the tar
 
 ```bash
 # From the repository root:
-npm run test:unit            # vitest (72 unit tests)
+npm run test:unit            # vitest (199 unit tests)
 npm test                     # full suite: unit + native + integration (E2E is separate: npm run test:e2e)
 npm run test:native          # go test ./... in native-host/ (16 unit tests)
 npm run test:integration     # go test ./... in tests/ (12 integration tests)

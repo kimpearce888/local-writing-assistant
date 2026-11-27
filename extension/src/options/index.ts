@@ -42,6 +42,7 @@ async function loadSettingsToUI(): Promise<void> {
   setCheck("checkPunctuation", s.checkPunctuation);
   setCheck("checkClarity", s.checkClarity);
   setCheck("checkWordChoice", s.checkWordChoice);
+  setCheck("enableLocalChecks", s.enableLocalChecks);
   setCheck("showFloatingWidget", s.showFloatingWidget);
   setCheck("hoverSuggestions", s.hoverSuggestions);
   setCheck("doubleClickSynonyms", s.doubleClickSynonyms);
@@ -107,6 +108,7 @@ async function gatherSettingsFromUI(): Promise<ExtensionSettings> {
     checkPunctuation: readBool("checkPunctuation"),
     checkClarity: readBool("checkClarity"),
     checkWordChoice: readBool("checkWordChoice"),
+    enableLocalChecks: readBool("enableLocalChecks"),
     showFloatingWidget: readBool("showFloatingWidget"),
     hoverSuggestions: readBool("hoverSuggestions"),
     doubleClickSynonyms: readBool("doubleClickSynonyms"),
