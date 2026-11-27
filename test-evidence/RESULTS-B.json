@@ -1,7 +1,7 @@
 {
   "session": "B",
-  "started": "2026-11-27T03:35:05.704Z",
-  "finished": "2026-11-27T03:39:11.169Z",
+  "started": "2026-11-27T03:52:23.016Z",
+  "finished": "2026-11-27T03:54:01.921Z",
   "aiCallLog": "ai-call-log.txt",
   "results": [
     {
@@ -13,18 +13,18 @@
         "B-01-sensitive-fields.png"
       ],
       "error": "",
-      "ms": 5207
+      "ms": 5166
     },
     {
       "id": "B-02",
       "name": "Side panel Check tab: 'Check now' returns real AI issues",
       "status": "PASS",
-      "detail": "5 issue(s) listed; chip=\"5 suggestions\"",
+      "detail": "4 issue(s) listed; chip=\"4 suggestions\"",
       "shots": [
         "B-02-sidepanel-check.png"
       ],
       "error": "",
-      "ms": 17338
+      "ms": 15788
     },
     {
       "id": "B-03",
@@ -35,7 +35,7 @@
         "B-03-sidepanel-insights.png"
       ],
       "error": "",
-      "ms": 2279
+      "ms": 1977
     },
     {
       "id": "B-04",
@@ -46,7 +46,7 @@
         "B-04-improve-it.png"
       ],
       "error": "",
-      "ms": 10435
+      "ms": 10350
     },
     {
       "id": "B-05",
@@ -57,7 +57,7 @@
         "B-05-custom-instruction.png"
       ],
       "error": "",
-      "ms": 10218
+      "ms": 10301
     },
     {
       "id": "B-06",
@@ -68,55 +68,58 @@
         "B-06-tldr.png"
       ],
       "error": "",
-      "ms": 10480
+      "ms": 10384
     },
     {
       "id": "B-07",
       "name": "Evaluate menu: 'Pick out my main point' analyzes and disables Replace",
       "status": "PASS",
-      "detail": "analysis: \"The main point is that they are going to the store and she doesn't know the way. Secondary...\" | Replace disabled=true",
+      "detail": "analysis: \"The main point is that someone is going to the store and another person doesn't know the w...\" | Replace disabled=true",
       "shots": [
         "B-07-main-point.png"
       ],
       "error": "",
-      "ms": 10832
+      "ms": 10696
     },
     {
       "id": "B-08",
       "name": "FULL journey: select-all, native menu 'Rewrite…', side panel handshake, Improve it, Replace onto page",
-      "status": "FAIL",
-      "detail": "panel preloaded with fresh page selection (304 chars)",
+      "status": "PASS",
+      "detail": "panel preloaded with fresh page selection (304 chars) | rewrite ready: \"Hi Sarah, /  / I wanted to follow up on the Q3 roadmap we discussed last week. The t...\" | apply confirmed (errorLine=\"Replaced.\"); page now: \"Hi Sarah, I wanted to follow up on the Q3 roadmap we discussed last week. The team doesn't\"",
       "shots": [
-        "B-08a-context-menu-rewrite-1.png"
+        "B-08a-context-menu-rewrite-1.png",
+        "B-08b-panel-rewrite.png",
+        "B-08c-replaced-on-page.png"
       ],
-      "error": "page.waitForFunction: Timeout 90000ms exceeded.",
-      "ms": 108802
+      "error": "",
+      "ms": 21598
     },
     {
       "id": "B-09",
       "name": "Popup master toggle OFF stops all analysis; ON restores it",
-      "status": "FAIL",
-      "detail": "extension disabled: 0 markers",
+      "status": "PASS",
+      "detail": "extension disabled: 0 markers | re-enabled: markers are back",
       "shots": [
         "B-09a-toggle-off.png",
-        "B-09b-disabled-no-markers.png"
+        "B-09b-disabled-no-markers.png",
+        "B-09c-re-enabled.png"
       ],
-      "error": "page.waitForSelector: Timeout 60000ms exceeded.\nCall log:\n  - waiting for locator('[data-lwa-highlight][data-issue-id]') to be visible\n",
-      "ms": 69506
+      "error": "",
+      "ms": 12305
     },
     {
       "id": "B-10",
       "name": "AI call log proves every result came from a real model round-trip",
       "status": "PASS",
-      "detail": "15 AI requests / 8 real responses / 2 cache-served duplicates; sample: [2026-11-27T03:35:52.968Z] RES#6 1080ms 196 chars",
+      "detail": "17 AI requests / 14 real responses / 3 cache-served duplicates; sample: [2026-11-27T03:53:56.433Z] RES#14 378ms 11 chars",
       "shots": [],
       "error": "",
-      "ms": 1
+      "ms": 0
     }
   ],
   "summary": {
     "total": 10,
-    "pass": 8,
-    "fail": 2
+    "pass": 10,
+    "fail": 0
   }
 }

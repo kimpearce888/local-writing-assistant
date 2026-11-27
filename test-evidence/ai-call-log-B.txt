@@ -1,6 +1,7 @@
-[2026-11-27T03:35:12.670Z] REQ#1 sys="You are a writing-assistant analyzer running fully locally o..." user="Their going to the store, and she don't no the way their. We seen it happen yest..."
-[2026-11-27T03:35:19.551Z] RES#1 6881ms 1321 chars
-[2026-11-27T03:35:19.551Z] FULL#1 {
+[2026-11-27T03:52:30.014Z] REQ#1 sys="You are a writing-assistant analyzer running fully locally o..." user="Their going to the store, and she don't no the way their. We seen it happen yest..."
+[2026-11-27T03:52:35.247Z] RES#1 5233ms 1130 chars
+[2026-11-27T03:52:35.247Z] FULL#1 ```json
+{
   "issues": [
     {
       "id": "issue-1",
@@ -9,55 +10,46 @@
       "original": "Their",
       "replacement": "They're",
       "category": "word_choice",
-      "explanation": "Incorrect form of 'they are'",
+      "explanation": "Contraction of 'they are' needed here.",
       "confidence": 1.0
     },
     {
       "id": "issue-2",
-      "start": 18,
-      "end": 22,
-      "original": "don't",
-      "replacement": "doesn't",
+      "start": 21,
+      "end": 25,
+      "original": "don't no",
+      "replacement": "doesn't know",
       "category": "grammar",
-      "explanation": "Subject-verb agreement error",
+      "explanation": "Incorrect verb form and misspelling.",
       "confidence": 1.0
     },
     {
       "id": "issue-3",
-      "start": 23,
-      "end": 26,
-      "original": "no",
-      "replacement": "know",
+      "start": 33,
+      "end": 37,
+      "original": "their",
+      "replacement": "there",
       "category": "word_choice",
-      "explanation": "Incorrect word, should be 'know'",
+      "explanation": "Refers to location, not possession.",
       "confidence": 1.0
     },
     {
       "id": "issue-4",
-      "start": 30,
-      "end": 35,
-      "original": "their",
-      "replacement": "there",
-      "category": "word_choice",
-      "explanation": "Incorrect form, should be 'there'",
-      "confidence": 1.0
-    },
-    {
-      "id": "issue-5",
-      "start": 37,
-      "end": 41,
-      "original": "seen",
-      "replacement": "saw",
-      "category": "word_choice",
-      "explanation": "Incorrect verb tense",
+      "start": 39,
+      "end": 44,
+      "original": "We seen",
+      "replacement": "We saw",
+      "category": "grammar",
+      "explanation": "Incorrect past tense form.",
       "confidence": 1.0
     }
   ],
   "correctedText": "They're going to the store, and she doesn't know the way there. We saw it happen yesterday."
 }
-[2026-11-27T03:35:28.690Z] REQ#2 sys="You are a writing-assistant analyzer running fully locally o..." user="Their going to the store, and she don't no the way their. We seen it happen yest..."
-[2026-11-27T03:35:29.786Z] RES#2 1096ms 114 chars
-[2026-11-27T03:35:29.786Z] FULL#2 ```json
+```
+[2026-11-27T03:52:44.384Z] REQ#2 sys="You are a writing-assistant analyzer running fully locally o..." user="Their going to the store, and she don't no the way their. We seen it happen yest..."
+[2026-11-27T03:52:45.357Z] RES#2 974ms 114 chars
+[2026-11-27T03:52:45.357Z] FULL#2 ```json
 {
   "tones": [
     { "tone": "neutral", "score": 0.9 },
@@ -65,82 +57,164 @@
   ]
 }
 ```
-[2026-11-27T03:35:29.940Z] REQ#3 sys="You are a writing-assistant analyzer running fully locally o..." user="Their..."
-[2026-11-27T03:35:30.574Z] RES#3 634ms 50 chars
-[2026-11-27T03:35:30.574Z] FULL#3 ```json
+[2026-11-27T03:52:45.635Z] REQ#3 sys="You are a writing-assistant analyzer running fully locally o..." user="Their..."
+[2026-11-27T03:52:46.221Z] RES#3 586ms 50 chars
+[2026-11-27T03:52:46.221Z] FULL#3 ```json
 {
   "synonyms": ["They're", "There"]
 }
 ```
-[2026-11-27T03:35:30.974Z] REQ#4 sys="You are a writing-assistant analyzer running fully locally o..." user="Their going to the store, and she don't no the way their. We seen it happen yest..."
-[2026-11-27T03:35:32.275Z] RES#4 1301ms 185 chars
-[2026-11-27T03:35:32.275Z] FULL#4 {
-  "rewritten": "They're going to the store, and she doesn't know the way there. We saw it happen yesterday.",
-  "explanation": "Corrected grammar, spelling, and word choice errors."
-}
-[2026-11-27T03:35:41.372Z] REQ#5 sys="You are a writing-assistant analyzer running fully locally o..." user="Their going to the store, and she don't no the way their. We seen it happen yest..."
-[2026-11-27T03:35:42.486Z] RES#5 1114ms 199 chars
-[2026-11-27T03:35:42.486Z] FULL#5 {
-  "rewritten": "They're going to the store, and she doesn't know the way there. We saw it happen yesterday.",
-  "explanation": "Corrected grammar and punctuation for clarity and professionalism."
-}
-[2026-11-27T03:35:51.888Z] REQ#6 sys="You are a writing-assistant analyzer running fully locally o..." user="Their going to the store, and she don't no the way their. We seen it happen yest..."
-[2026-11-27T03:35:52.968Z] RES#6 1080ms 196 chars
-[2026-11-27T03:35:52.968Z] FULL#6 ```json
+[2026-11-27T03:52:46.366Z] REQ#4 sys="You are a writing-assistant analyzer running fully locally o..." user="Their going to the store, and she don't no the way their. We seen it happen yest..."
+[2026-11-27T03:52:47.575Z] RES#4 1209ms 195 chars
+[2026-11-27T03:52:47.575Z] FULL#4 ```json
 {
   "rewritten": "They're going to the store, and she doesn't know the way there. We saw it happen yesterday.",
-  "explanation": "Corrected grammatical errors and spelling mistakes."
+  "explanation": "Corrected grammatical errors and improved clarity."
 }
 ```
-[2026-11-27T03:36:02.389Z] REQ#7 sys="You are a writing-assistant analyzer running fully locally o..." user="Their going to the store, and she don't no the way their. We seen it happen yest..."
-[2026-11-27T03:36:03.814Z] RES#7 1425ms 262 chars
-[2026-11-27T03:36:03.814Z] FULL#7 {
-  "rewritten": "The main point is that they are going to the store and she doesn't know the way. Secondary points: This was observed yesterday.",
-  "explanation": "Corrected grammatical errors and clarified the meaning while preserving the original content."
+[2026-11-27T03:52:56.681Z] REQ#5 sys="You are a writing-assistant analyzer running fully locally o..." user="Their going to the store, and she don't no the way their. We seen it happen yest..."
+[2026-11-27T03:52:57.875Z] RES#5 1194ms 207 chars
+[2026-11-27T03:52:57.875Z] FULL#5 ```json
+{
+  "rewritten": "They're going to the store, and she doesn't know the way there. We saw it happen yesterday.",
+  "explanation": "Corrected grammar and punctuation for clarity and readability."
 }
-[2026-11-27T03:36:14.221Z] REQ#8 sys="You are a writing-assistant analyzer running fully locally o..." user="Hi Sarah, I wanted to follow up on the Q3 roadmap we discussed last week. The t..."
-[2026-11-27T03:36:17.735Z] RES#8 3514ms 649 chars
-[2026-11-27T03:36:17.735Z] FULL#8 {
+```
+[2026-11-27T03:53:07.280Z] REQ#6 sys="You are a writing-assistant analyzer running fully locally o..." user="Their going to the store, and she don't no the way their. We seen it happen yest..."
+[2026-11-27T03:53:08.267Z] RES#6 987ms 175 chars
+[2026-11-27T03:53:08.267Z] FULL#6 {
+  "rewritten": "They're going to the store, and she doesn't know the way there. We saw it happen yesterday.",
+  "explanation": "Corrected grammatical errors and spelling."
+}
+[2026-11-27T03:53:17.664Z] REQ#7 sys="You are a writing-assistant analyzer running fully locally o..." user="Their going to the store, and she don't no the way their. We seen it happen yest..."
+[2026-11-27T03:53:18.957Z] RES#7 1293ms 335 chars
+[2026-11-27T03:53:18.957Z] FULL#7 {
+  "rewritten": "The main point is that someone is going to the store and another person doesn't know the way there. Secondary points include that this was observed yesterday and there are grammatical errors in the text.",
+  "explanation": "Identified the main point and noted grammatical issues without altering the original text."
+}
+[2026-11-27T03:53:29.413Z] REQ#8 sys="You are a writing-assistant analyzer running fully locally o..." user="Hi Sarah, I wanted to follow up on the Q3 roadmap we discussed last week. The t..."
+[2026-11-27T03:53:32.761Z] RES#8 3348ms 640 chars
+[2026-11-27T03:53:32.761Z] FULL#8 {
   "issues": [
     {
       "id": "issue-1",
-      "start": 82,
-      "end": 94,
+      "start": 70,
+      "end": 82,
       "original": "The team don't",
       "replacement": "The team doesn't",
       "category": "grammar",
-      "explanation": "Subject-verb agreement: 'team' is singular and requires 'doesn't'.",
+      "explanation": "Subject-verb agreement error with singular subject 'team'",
       "confidence": 1.0
     }
   ],
   "correctedText": "Hi Sarah,\n\nI wanted to follow up on the Q3 roadmap we discussed last week. The team doesn't have a clear sense of priorities yet, and I think we should revisit the scope before the next milestone.\n\nCould we set up a 30-minute call on Thursday to align? I'll send a calendar invite separately.\n\nThanks,\nAlex"
 }
-[2026-11-27T03:36:20.252Z] REQ#9 sys="You are a writing-assistant analyzer running fully locally o..." user="Hi Sarah, I wanted to follow up on the Q3 roadmap we discussed last week. The t..."
-[2026-11-27T03:36:20.261Z] ATTEMPT#9.1 failed (retryable): API request failed with status 429: {"error":"Too many requests, please try again later"}
-[2026-11-27T03:36:28.278Z] ATTEMPT#9.2 failed (retryable): API request failed with status 429: {"error":"Too many requests, please try again later"}
-[2026-11-27T03:36:42.285Z] ATTEMPT#9.3 failed (retryable): API request failed with status 429: {"error":"Too many requests, please try again later"}
-[2026-11-27T03:36:42.285Z] ERR chat/completions: API request failed with status 429: {"error":"Too many requests, please try again later"}
-[2026-11-27T03:36:42.287Z] REQ#10 sys="You are a writing-assistant analyzer running fully locally o..." user="Hi Sarah, I wanted to follow up on the Q3 roadmap we discussed last week. The t..."
-[2026-11-27T03:36:42.287Z] CACHE#10 identical payload served from shim cache
-[2026-11-27T03:36:42.288Z] REQ#11 sys="You are a writing-assistant analyzer running fully locally o..." user="Hi Sarah, I wanted to follow up on the Q3 roadmap we discussed last week. The t..."
-[2026-11-27T03:36:42.288Z] CACHE#11 identical payload served from shim cache
-[2026-11-27T03:36:42.289Z] REQ#12 sys="You are a writing-assistant analyzer running fully locally o..." user="Hi Sarah, I wanted to follow up on the Q3 roadmap we discussed last week. The t..."
-[2026-11-27T03:36:42.295Z] ATTEMPT#12.1 failed (retryable): API request failed with status 429: {"error":"Too many requests, please try again later"}
-[2026-11-27T03:36:50.302Z] ATTEMPT#12.2 failed (retryable): API request failed with status 429: {"error":"Too many requests, please try again later"}
-[2026-11-27T03:37:04.311Z] ATTEMPT#12.3 failed (retryable): API request failed with status 429: {"error":"Too many requests, please try again later"}
-[2026-11-27T03:37:04.311Z] ERR chat/completions: API request failed with status 429: {"error":"Too many requests, please try again later"}
-[2026-11-27T03:38:01.772Z] REQ#13 sys="Return only JSON: {"ok":true}..." user="..."
-[2026-11-27T03:38:01.796Z] ATTEMPT#13.1 failed (retryable): API request failed with status 429: {"error":"Too many requests, please try again later"}
-[2026-11-27T03:38:09.804Z] ATTEMPT#13.2 failed (retryable): API request failed with status 429: {"error":"Too many requests, please try again later"}
-[2026-11-27T03:38:11.779Z] REQ#14 sys="Return only JSON: {"ok":true}..." user="..."
-[2026-11-27T03:38:11.832Z] ATTEMPT#14.1 failed (retryable): API request failed with status 429: {"error":"Too many requests, please try again later"}
-[2026-11-27T03:38:19.838Z] ATTEMPT#14.2 failed (retryable): API request failed with status 429: {"error":"Too many requests, please try again later"}
-[2026-11-27T03:38:21.781Z] REQ#15 sys="You are a writing-assistant analyzer running fully locally o..." user="She don't like it...."
-[2026-11-27T03:38:21.787Z] ATTEMPT#15.1 failed (retryable): API request failed with status 429: {"error":"Too many requests, please try again later"}
-[2026-11-27T03:38:23.811Z] ATTEMPT#15.3 failed (retryable): API request failed with status 429: {"error":"Too many requests, please try again later"}
-[2026-11-27T03:38:23.811Z] ERR chat/completions: API request failed with status 429: {"error":"Too many requests, please try again later"}
-[2026-11-27T03:38:29.793Z] ATTEMPT#15.2 failed (retryable): API request failed with status 429: {"error":"Too many requests, please try again later"}
-[2026-11-27T03:38:33.844Z] ATTEMPT#15.3 failed (retryable): API request failed with status 429: {"error":"Too many requests, please try again later"}
-[2026-11-27T03:38:33.844Z] ERR chat/completions: API request failed with status 429: {"error":"Too many requests, please try again later"}
-[2026-11-27T03:38:43.799Z] ATTEMPT#15.3 failed (retryable): API request failed with status 429: {"error":"Too many requests, please try again later"}
-[2026-11-27T03:38:43.799Z] ERR chat/completions: API request failed with status 429: {"error":"Too many requests, please try again later"}
+[2026-11-27T03:53:35.268Z] REQ#9 sys="You are a writing-assistant analyzer running fully locally o..." user="Hi Sarah, I wanted to follow up on the Q3 roadmap we discussed last week. The t..."
+[2026-11-27T03:53:36.601Z] RES#9 1333ms 146 chars
+[2026-11-27T03:53:36.602Z] FULL#9 {
+  "tones": [
+    { "tone": "direct", "score": 0.8 },
+    { "tone": "neutral", "score": 0.7 },
+    { "tone": "professional", "score": 0.6 }
+  ]
+}
+[2026-11-27T03:53:36.603Z] REQ#10 sys="You are a writing-assistant analyzer running fully locally o..." user="Hi Sarah, I wanted to follow up on the Q3 roadmap we discussed last week. The t..."
+[2026-11-27T03:53:36.603Z] CACHE#10 identical payload served from shim cache
+[2026-11-27T03:53:36.991Z] REQ#11 sys="You are a writing-assistant analyzer running fully locally o..." user="Hi Sarah, I wanted to follow up on the Q3 roadmap we discussed last week. The t..."
+[2026-11-27T03:53:36.991Z] CACHE#11 identical payload served from shim cache
+[2026-11-27T03:53:46.865Z] REQ#12 sys="You are a writing-assistant analyzer running fully locally o..." user="Hi Sarah, I wanted to follow up on the Q3 roadmap we discussed last week. The t..."
+[2026-11-27T03:53:48.725Z] RES#12 1860ms 431 chars
+[2026-11-27T03:53:48.725Z] FULL#12 ```json
+{
+  "rewritten": "Hi Sarah,\n\nI wanted to follow up on the Q3 roadmap we discussed last week. The team doesn't have a clear sense of priorities yet, and I think we should revisit the scope before the next milestone.\n\nCould we set up a 30-minute call on Thursday to align? I'll send a calendar invite separately.\n\nThanks,\nAlex",
+  "explanation": "Changed 'don't' to 'doesn't' for correct subject-verb agreement."
+}
+```
+[2026-11-27T03:53:49.523Z] REQ#13 sys="You are a writing-assistant analyzer running fully locally o..." user="Hi Sarah,I wanted to follow up on the Q3 roadmap we discussed last week. The tea..."
+[2026-11-27T03:53:56.051Z] RES#13 6528ms 1559 chars
+[2026-11-27T03:53:56.052Z] FULL#13 {
+  "issues": [
+    {
+      "id": "issue-1",
+      "start": 4,
+      "end": 9,
+      "original": "Sarah,",
+      "replacement": "Sarah,",
+      "category": "punctuation",
+      "explanation": "Add space after comma",
+      "confidence": 1.0
+    },
+    {
+      "id": "issue-2",
+      "start": 44,
+      "end": 48,
+      "original": "week.",
+      "replacement": "week. ",
+      "category": "punctuation",
+      "explanation": "Add space after period",
+      "confidence": 1.0
+    },
+    {
+      "id": "issue-3",
+      "start": 123,
+      "end": 127,
+      "original": "call on",
+      "replacement": "call on",
+      "category": "word_choice",
+      "explanation": "Consider 'to discuss' instead of 'on'",
+      "confidence": 0.7
+    },
+    {
+      "id": "issue-4",
+      "start": 130,
+      "end": 135,
+      "original": "align?",
+      "replacement": "align?",
+      "category": "punctuation",
+      "explanation": "Add space before question mark",
+      "confidence": 1.0
+    },
+    {
+      "id": "issue-5",
+      "start": 150,
+      "end": 156,
+      "original": "separately.",
+      "replacement": "separately. ",
+      "category": "punctuation",
+      "explanation": "Add space after period",
+      "confidence": 1.0
+    }
+  ],
+  "correctedText": "Hi Sarah, I wanted to follow up on the Q3 roadmap we discussed last week. The team doesn't have a clear sense of priorities yet, and I think we should revisit the scope before the next milestone. Could we set up a 30-minute call on Thursday to align? I'll send a calendar invite separately. Thanks, Alex"
+}
+[2026-11-27T03:53:56.055Z] REQ#14 sys="Return only JSON: {"ok":true}..." user="..."
+[2026-11-27T03:53:56.433Z] RES#14 378ms 11 chars
+[2026-11-27T03:53:56.433Z] FULL#14 {"ok":true}
+[2026-11-27T03:53:58.559Z] REQ#15 sys="You are a writing-assistant analyzer running fully locally o..." user="Hi Sarah,I wanted to follow up on the Q3 roadmap we discussed last week. The tea..."
+[2026-11-27T03:53:59.733Z] RES#15 1174ms 149 chars
+[2026-11-27T03:53:59.733Z] FULL#15 {
+  "tones": [
+    { "tone": "direct", "score": 0.75 },
+    { "tone": "neutral", "score": 0.65 },
+    { "tone": "collaborative", "score": 0.6 }
+  ]
+}
+[2026-11-27T03:53:59.734Z] REQ#16 sys="Return only JSON: {"ok":true}..." user="..."
+[2026-11-27T03:53:59.734Z] CACHE#16 identical payload served from shim cache
+[2026-11-27T03:53:59.785Z] REQ#17 sys="You are a writing-assistant analyzer running fully locally o..." user="She don't like it...."
+[2026-11-27T03:54:01.579Z] RES#17 1794ms 334 chars
+[2026-11-27T03:54:01.579Z] FULL#17 {
+  "issues": [
+    {
+      "id": "issue-1",
+      "start": 0,
+      "end": 4,
+      "original": "She don't",
+      "replacement": "She doesn't",
+      "category": "grammar",
+      "explanation": "Subject-verb agreement error with third person singular.",
+      "confidence": 1.0
+    }
+  ],
+  "correctedText": "She doesn't like it."
+}
