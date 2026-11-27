@@ -1,0 +1,146 @@
+[2026-11-27T03:35:12.670Z] REQ#1 sys="You are a writing-assistant analyzer running fully locally o..." user="Their going to the store, and she don't no the way their. We seen it happen yest..."
+[2026-11-27T03:35:19.551Z] RES#1 6881ms 1321 chars
+[2026-11-27T03:35:19.551Z] FULL#1 {
+  "issues": [
+    {
+      "id": "issue-1",
+      "start": 0,
+      "end": 5,
+      "original": "Their",
+      "replacement": "They're",
+      "category": "word_choice",
+      "explanation": "Incorrect form of 'they are'",
+      "confidence": 1.0
+    },
+    {
+      "id": "issue-2",
+      "start": 18,
+      "end": 22,
+      "original": "don't",
+      "replacement": "doesn't",
+      "category": "grammar",
+      "explanation": "Subject-verb agreement error",
+      "confidence": 1.0
+    },
+    {
+      "id": "issue-3",
+      "start": 23,
+      "end": 26,
+      "original": "no",
+      "replacement": "know",
+      "category": "word_choice",
+      "explanation": "Incorrect word, should be 'know'",
+      "confidence": 1.0
+    },
+    {
+      "id": "issue-4",
+      "start": 30,
+      "end": 35,
+      "original": "their",
+      "replacement": "there",
+      "category": "word_choice",
+      "explanation": "Incorrect form, should be 'there'",
+      "confidence": 1.0
+    },
+    {
+      "id": "issue-5",
+      "start": 37,
+      "end": 41,
+      "original": "seen",
+      "replacement": "saw",
+      "category": "word_choice",
+      "explanation": "Incorrect verb tense",
+      "confidence": 1.0
+    }
+  ],
+  "correctedText": "They're going to the store, and she doesn't know the way there. We saw it happen yesterday."
+}
+[2026-11-27T03:35:28.690Z] REQ#2 sys="You are a writing-assistant analyzer running fully locally o..." user="Their going to the store, and she don't no the way their. We seen it happen yest..."
+[2026-11-27T03:35:29.786Z] RES#2 1096ms 114 chars
+[2026-11-27T03:35:29.786Z] FULL#2 ```json
+{
+  "tones": [
+    { "tone": "neutral", "score": 0.9 },
+    { "tone": "informal", "score": 0.7 }
+  ]
+}
+```
+[2026-11-27T03:35:29.940Z] REQ#3 sys="You are a writing-assistant analyzer running fully locally o..." user="Their..."
+[2026-11-27T03:35:30.574Z] RES#3 634ms 50 chars
+[2026-11-27T03:35:30.574Z] FULL#3 ```json
+{
+  "synonyms": ["They're", "There"]
+}
+```
+[2026-11-27T03:35:30.974Z] REQ#4 sys="You are a writing-assistant analyzer running fully locally o..." user="Their going to the store, and she don't no the way their. We seen it happen yest..."
+[2026-11-27T03:35:32.275Z] RES#4 1301ms 185 chars
+[2026-11-27T03:35:32.275Z] FULL#4 {
+  "rewritten": "They're going to the store, and she doesn't know the way there. We saw it happen yesterday.",
+  "explanation": "Corrected grammar, spelling, and word choice errors."
+}
+[2026-11-27T03:35:41.372Z] REQ#5 sys="You are a writing-assistant analyzer running fully locally o..." user="Their going to the store, and she don't no the way their. We seen it happen yest..."
+[2026-11-27T03:35:42.486Z] RES#5 1114ms 199 chars
+[2026-11-27T03:35:42.486Z] FULL#5 {
+  "rewritten": "They're going to the store, and she doesn't know the way there. We saw it happen yesterday.",
+  "explanation": "Corrected grammar and punctuation for clarity and professionalism."
+}
+[2026-11-27T03:35:51.888Z] REQ#6 sys="You are a writing-assistant analyzer running fully locally o..." user="Their going to the store, and she don't no the way their. We seen it happen yest..."
+[2026-11-27T03:35:52.968Z] RES#6 1080ms 196 chars
+[2026-11-27T03:35:52.968Z] FULL#6 ```json
+{
+  "rewritten": "They're going to the store, and she doesn't know the way there. We saw it happen yesterday.",
+  "explanation": "Corrected grammatical errors and spelling mistakes."
+}
+```
+[2026-11-27T03:36:02.389Z] REQ#7 sys="You are a writing-assistant analyzer running fully locally o..." user="Their going to the store, and she don't no the way their. We seen it happen yest..."
+[2026-11-27T03:36:03.814Z] RES#7 1425ms 262 chars
+[2026-11-27T03:36:03.814Z] FULL#7 {
+  "rewritten": "The main point is that they are going to the store and she doesn't know the way. Secondary points: This was observed yesterday.",
+  "explanation": "Corrected grammatical errors and clarified the meaning while preserving the original content."
+}
+[2026-11-27T03:36:14.221Z] REQ#8 sys="You are a writing-assistant analyzer running fully locally o..." user="Hi Sarah, I wanted to follow up on the Q3 roadmap we discussed last week. The t..."
+[2026-11-27T03:36:17.735Z] RES#8 3514ms 649 chars
+[2026-11-27T03:36:17.735Z] FULL#8 {
+  "issues": [
+    {
+      "id": "issue-1",
+      "start": 82,
+      "end": 94,
+      "original": "The team don't",
+      "replacement": "The team doesn't",
+      "category": "grammar",
+      "explanation": "Subject-verb agreement: 'team' is singular and requires 'doesn't'.",
+      "confidence": 1.0
+    }
+  ],
+  "correctedText": "Hi Sarah,\n\nI wanted to follow up on the Q3 roadmap we discussed last week. The team doesn't have a clear sense of priorities yet, and I think we should revisit the scope before the next milestone.\n\nCould we set up a 30-minute call on Thursday to align? I'll send a calendar invite separately.\n\nThanks,\nAlex"
+}
+[2026-11-27T03:36:20.252Z] REQ#9 sys="You are a writing-assistant analyzer running fully locally o..." user="Hi Sarah, I wanted to follow up on the Q3 roadmap we discussed last week. The t..."
+[2026-11-27T03:36:20.261Z] ATTEMPT#9.1 failed (retryable): API request failed with status 429: {"error":"Too many requests, please try again later"}
+[2026-11-27T03:36:28.278Z] ATTEMPT#9.2 failed (retryable): API request failed with status 429: {"error":"Too many requests, please try again later"}
+[2026-11-27T03:36:42.285Z] ATTEMPT#9.3 failed (retryable): API request failed with status 429: {"error":"Too many requests, please try again later"}
+[2026-11-27T03:36:42.285Z] ERR chat/completions: API request failed with status 429: {"error":"Too many requests, please try again later"}
+[2026-11-27T03:36:42.287Z] REQ#10 sys="You are a writing-assistant analyzer running fully locally o..." user="Hi Sarah, I wanted to follow up on the Q3 roadmap we discussed last week. The t..."
+[2026-11-27T03:36:42.287Z] CACHE#10 identical payload served from shim cache
+[2026-11-27T03:36:42.288Z] REQ#11 sys="You are a writing-assistant analyzer running fully locally o..." user="Hi Sarah, I wanted to follow up on the Q3 roadmap we discussed last week. The t..."
+[2026-11-27T03:36:42.288Z] CACHE#11 identical payload served from shim cache
+[2026-11-27T03:36:42.289Z] REQ#12 sys="You are a writing-assistant analyzer running fully locally o..." user="Hi Sarah, I wanted to follow up on the Q3 roadmap we discussed last week. The t..."
+[2026-11-27T03:36:42.295Z] ATTEMPT#12.1 failed (retryable): API request failed with status 429: {"error":"Too many requests, please try again later"}
+[2026-11-27T03:36:50.302Z] ATTEMPT#12.2 failed (retryable): API request failed with status 429: {"error":"Too many requests, please try again later"}
+[2026-11-27T03:37:04.311Z] ATTEMPT#12.3 failed (retryable): API request failed with status 429: {"error":"Too many requests, please try again later"}
+[2026-11-27T03:37:04.311Z] ERR chat/completions: API request failed with status 429: {"error":"Too many requests, please try again later"}
+[2026-11-27T03:38:01.772Z] REQ#13 sys="Return only JSON: {"ok":true}..." user="..."
+[2026-11-27T03:38:01.796Z] ATTEMPT#13.1 failed (retryable): API request failed with status 429: {"error":"Too many requests, please try again later"}
+[2026-11-27T03:38:09.804Z] ATTEMPT#13.2 failed (retryable): API request failed with status 429: {"error":"Too many requests, please try again later"}
+[2026-11-27T03:38:11.779Z] REQ#14 sys="Return only JSON: {"ok":true}..." user="..."
+[2026-11-27T03:38:11.832Z] ATTEMPT#14.1 failed (retryable): API request failed with status 429: {"error":"Too many requests, please try again later"}
+[2026-11-27T03:38:19.838Z] ATTEMPT#14.2 failed (retryable): API request failed with status 429: {"error":"Too many requests, please try again later"}
+[2026-11-27T03:38:21.781Z] REQ#15 sys="You are a writing-assistant analyzer running fully locally o..." user="She don't like it...."
+[2026-11-27T03:38:21.787Z] ATTEMPT#15.1 failed (retryable): API request failed with status 429: {"error":"Too many requests, please try again later"}
+[2026-11-27T03:38:23.811Z] ATTEMPT#15.3 failed (retryable): API request failed with status 429: {"error":"Too many requests, please try again later"}
+[2026-11-27T03:38:23.811Z] ERR chat/completions: API request failed with status 429: {"error":"Too many requests, please try again later"}
+[2026-11-27T03:38:29.793Z] ATTEMPT#15.2 failed (retryable): API request failed with status 429: {"error":"Too many requests, please try again later"}
+[2026-11-27T03:38:33.844Z] ATTEMPT#15.3 failed (retryable): API request failed with status 429: {"error":"Too many requests, please try again later"}
+[2026-11-27T03:38:33.844Z] ERR chat/completions: API request failed with status 429: {"error":"Too many requests, please try again later"}
+[2026-11-27T03:38:43.799Z] ATTEMPT#15.3 failed (retryable): API request failed with status 429: {"error":"Too many requests, please try again later"}
+[2026-11-27T03:38:43.799Z] ERR chat/completions: API request failed with status 429: {"error":"Too many requests, please try again later"}

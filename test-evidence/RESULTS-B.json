@@ -1,0 +1,122 @@
+{
+  "session": "B",
+  "started": "2026-11-27T03:35:05.704Z",
+  "finished": "2026-11-27T03:39:11.169Z",
+  "aiCallLog": "ai-call-log.txt",
+  "results": [
+    {
+      "id": "B-01",
+      "name": "Password and API-key fields are never analyzed",
+      "status": "PASS",
+      "detail": "values intact, 0 inline markers on sensitive fields",
+      "shots": [
+        "B-01-sensitive-fields.png"
+      ],
+      "error": "",
+      "ms": 5207
+    },
+    {
+      "id": "B-02",
+      "name": "Side panel Check tab: 'Check now' returns real AI issues",
+      "status": "PASS",
+      "detail": "5 issue(s) listed; chip=\"5 suggestions\"",
+      "shots": [
+        "B-02-sidepanel-check.png"
+      ],
+      "error": "",
+      "ms": 17338
+    },
+    {
+      "id": "B-03",
+      "name": "Insights tab: performance dashboard, stats, tone detection, synonyms",
+      "status": "PASS",
+      "detail": "stats: 17Words86Characters2Sentences1Paragraphs0.1 minReading time0.1 minSpeaking timeVery easy (98.7)Readability90%V | tone readings: 2 | synonyms for \"good\": 2 suggestion(s)",
+      "shots": [
+        "B-03-sidepanel-insights.png"
+      ],
+      "error": "",
+      "ms": 2279
+    },
+    {
+      "id": "B-04",
+      "name": "'Improve it' rewrites the text with REAL AI",
+      "status": "PASS",
+      "detail": "result: \"They're going to the store, and she doesn't know the way there. We saw it happen yesterday....\"",
+      "shots": [
+        "B-04-improve-it.png"
+      ],
+      "error": "",
+      "ms": 10435
+    },
+    {
+      "id": "B-05",
+      "name": "Custom instruction: 'Rewrite this as a friendly Slack message'",
+      "status": "PASS",
+      "detail": "result: \"They're going to the store, and she doesn't know the way there. We saw it happen yesterday....\"",
+      "shots": [
+        "B-05-custom-instruction.png"
+      ],
+      "error": "",
+      "ms": 10218
+    },
+    {
+      "id": "B-06",
+      "name": "Write menu: 'Create a TL;DR' generates a summary",
+      "status": "PASS",
+      "detail": "TL;DR: \"They're going to the store, and she doesn't know the way there. We saw it happen yesterday.\"",
+      "shots": [
+        "B-06-tldr.png"
+      ],
+      "error": "",
+      "ms": 10480
+    },
+    {
+      "id": "B-07",
+      "name": "Evaluate menu: 'Pick out my main point' analyzes and disables Replace",
+      "status": "PASS",
+      "detail": "analysis: \"The main point is that they are going to the store and she doesn't know the way. Secondary...\" | Replace disabled=true",
+      "shots": [
+        "B-07-main-point.png"
+      ],
+      "error": "",
+      "ms": 10832
+    },
+    {
+      "id": "B-08",
+      "name": "FULL journey: select-all, native menu 'Rewrite…', side panel handshake, Improve it, Replace onto page",
+      "status": "FAIL",
+      "detail": "panel preloaded with fresh page selection (304 chars)",
+      "shots": [
+        "B-08a-context-menu-rewrite-1.png"
+      ],
+      "error": "page.waitForFunction: Timeout 90000ms exceeded.",
+      "ms": 108802
+    },
+    {
+      "id": "B-09",
+      "name": "Popup master toggle OFF stops all analysis; ON restores it",
+      "status": "FAIL",
+      "detail": "extension disabled: 0 markers",
+      "shots": [
+        "B-09a-toggle-off.png",
+        "B-09b-disabled-no-markers.png"
+      ],
+      "error": "page.waitForSelector: Timeout 60000ms exceeded.\nCall log:\n  - waiting for locator('[data-lwa-highlight][data-issue-id]') to be visible\n",
+      "ms": 69506
+    },
+    {
+      "id": "B-10",
+      "name": "AI call log proves every result came from a real model round-trip",
+      "status": "PASS",
+      "detail": "15 AI requests / 8 real responses / 2 cache-served duplicates; sample: [2026-11-27T03:35:52.968Z] RES#6 1080ms 196 chars",
+      "shots": [],
+      "error": "",
+      "ms": 1
+    }
+  ],
+  "summary": {
+    "total": 10,
+    "pass": 8,
+    "fail": 2
+  }
+}

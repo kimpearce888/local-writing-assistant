@@ -1,0 +1,191 @@
+[2026-11-27T03:34:07.704Z] REQ#1 sys="Return only JSON: {"ok":true}..." user="..."
+[2026-11-27T03:34:08.203Z] RES#1 500ms 23 chars
+[2026-11-27T03:34:08.203Z] FULL#1 ```json
+{"ok":true}
+```
+[2026-11-27T03:34:08.296Z] REQ#2 sys="Return only JSON: {"ok":true}..." user="..."
+[2026-11-27T03:34:08.296Z] CACHE#2 identical payload served from shim cache
+[2026-11-27T03:34:08.298Z] REQ#3 sys="Return only JSON: {"ok":true}..." user="..."
+[2026-11-27T03:34:08.298Z] CACHE#3 identical payload served from shim cache
+[2026-11-27T03:34:09.589Z] REQ#4 sys="You are a writing-assistant analyzer running fully locally o..." user="She don't like it...."
+[2026-11-27T03:34:11.678Z] RES#4 2089ms 338 chars
+[2026-11-27T03:34:11.678Z] FULL#4 {
+  "issues": [
+    {
+      "id": "issue-1",
+      "start": 0,
+      "end": 4,
+      "original": "She don't",
+      "replacement": "She doesn't",
+      "category": "grammar",
+      "explanation": "Third-person singular requires 'doesn't' instead of 'don't'.",
+      "confidence": 1.0
+    }
+  ],
+  "correctedText": "She doesn't like it."
+}
+[2026-11-27T03:34:14.947Z] REQ#5 sys="You are a writing-assistant analyzer running fully locally o..." user="teh report is recieved..."
+[2026-11-27T03:34:18.213Z] RES#5 3266ms 550 chars
+[2026-11-27T03:34:18.213Z] FULL#5 {
+  "issues": [
+    {
+      "id": "issue-1",
+      "start": 0,
+      "end": 3,
+      "original": "teh",
+      "replacement": "the",
+      "category": "spelling",
+      "explanation": "Common misspelling of 'the'",
+      "confidence": 1.0
+    },
+    {
+      "id": "issue-2",
+      "start": 8,
+      "end": 16,
+      "original": "recieved",
+      "replacement": "received",
+      "category": "spelling",
+      "explanation": "Correct spelling of 'received' (double 'e')",
+      "confidence": 1.0
+    }
+  ],
+  "correctedText": "the report is received"
+}
+[2026-11-27T03:34:22.141Z] REQ#6 sys="You are a writing-assistant analyzer running fully locally o..." user="Hi Sarah, I wanted to follow up on the Q3 roadmap we discussed last week. The te..."
+[2026-11-27T03:34:26.004Z] RES#6 3863ms 864 chars
+[2026-11-27T03:34:26.004Z] FULL#6 ```json
+{
+  "issues": [
+    {
+      "id": "issue-1",
+      "start": 83,
+      "end": 92,
+      "original": "team don't",
+      "replacement": "team doesn't",
+      "category": "grammar",
+      "explanation": "Subject-verb agreement error with singular collective noun",
+      "confidence": 1.0
+    },
+    {
+      "id": "issue-2",
+      "start": 164,
+      "end": 173,
+      "original": "She don't",
+      "replacement": "She doesn't",
+      "category": "grammar",
+      "explanation": "Subject-verb agreement error with third person singular",
+      "confidence": 1.0
+    }
+  ],
+  "correctedText": "Hi Sarah, I wanted to follow up on the Q3 roadmap we discussed last week. The team doesn't have a clear sense of priorities yet, and we should revisit the scope before the next milestone. Could we set up a short call on Thursday to align?She doesn't like it."
+}
+```
+[2026-11-27T03:34:26.005Z] REQ#7 sys="You are a writing-assistant analyzer running fully locally o..." user="Hi Sarah, I wanted to follow up on the Q3 roadmap we discussed last week. The t..."
+[2026-11-27T03:34:29.224Z] RES#7 3219ms 632 chars
+[2026-11-27T03:34:29.225Z] FULL#7 {
+  "issues": [
+    {
+      "id": "issue-1",
+      "start": 76,
+      "end": 85,
+      "original": "team don't",
+      "replacement": "team doesn't",
+      "category": "grammar",
+      "explanation": "Subject-verb agreement error with singular subject 'team'",
+      "confidence": 1.0
+    }
+  ],
+  "correctedText": "Hi Sarah,\n\nI wanted to follow up on the Q3 roadmap we discussed last week. The team doesn't have a clear sense of priorities yet, and I think we should revisit the scope before the next milestone.\n\nCould we set up a 30-minute call on Thursday to align? I'll send a calendar invite separately.\n\nThanks,\nAlex"
+}
+[2026-11-27T03:34:29.225Z] REQ#8 sys="You are a writing-assistant analyzer running fully locally o..." user="Hi Sarah, I wanted to follow up on the Q3 roadmap we discussed last week. The te..."
+[2026-11-27T03:34:30.473Z] RES#8 1248ms 152 chars
+[2026-11-27T03:34:30.473Z] FULL#8 {
+  "tones": [
+    { "tone": "direct", "score": 0.8 },
+    { "tone": "professional", "score": 0.7 },
+    { "tone": "collaborative", "score": 0.6 }
+  ]
+}
+[2026-11-27T03:34:31.496Z] REQ#9 sys="You are a writing-assistant analyzer running fully locally o..." user="He go to school...."
+[2026-11-27T03:34:33.446Z] RES#9 1950ms 325 chars
+[2026-11-27T03:34:33.446Z] FULL#9 
+{
+  "issues": [
+    {
+      "id": "issue-1",
+      "start": 0,
+      "end": 2,
+      "original": "He go",
+      "replacement": "He goes",
+      "category": "grammar",
+      "explanation": "Subject-verb agreement error with third person singular.",
+      "confidence": 1.0
+    }
+  ],
+  "correctedText": "He goes to school."
+}
+[2026-11-27T03:34:39.237Z] REQ#10 sys="You are a writing-assistant analyzer running fully locally o..." user="Reach me anytime. Best regards, Alex Kim Founder, Example Corp..."
+[2026-11-27T03:34:39.764Z] RES#10 527ms 41 chars
+[2026-11-27T03:34:39.764Z] FULL#10 {
+  "issues": [],
+  "correctedText": ""
+}
+[2026-11-27T03:34:39.876Z] REQ#11 sys="Return only JSON: {"ok":true}..." user="..."
+[2026-11-27T03:34:39.876Z] CACHE#11 identical payload served from shim cache
+[2026-11-27T03:34:46.342Z] REQ#12 sys="You are a writing-assistant analyzer running fully locally o..." user="Hi Sarah, I wanted to follow up on the Q3 roadmap we discussed last week. The te..."
+[2026-11-27T03:34:49.006Z] RES#12 2664ms 578 chars
+[2026-11-27T03:34:49.006Z] FULL#12 ```json
+{
+  "issues": [
+    {
+      "id": "issue-1",
+      "start": 160,
+      "end": 166,
+      "original": "don't",
+      "replacement": "doesn't",
+      "category": "grammar",
+      "explanation": "Subject-verb agreement error with third person singular.",
+      "confidence": 1.0
+    }
+  ],
+  "correctedText": "Hi Sarah, I wanted to follow up on the Q3 roadmap we discussed last week. The team don't have a clear sense of priorities yet, and we should revisit the scope before the next milestone. Could we set up a short call on Thursday to align?She doesn't like it."
+}
+```
+[2026-11-27T03:34:49.007Z] REQ#13 sys="You are a writing-assistant analyzer running fully locally o..." user="He go to school...."
+[2026-11-27T03:34:50.769Z] RES#13 1762ms 325 chars
+[2026-11-27T03:34:50.769Z] FULL#13 
+{
+  "issues": [
+    {
+      "id": "issue-1",
+      "start": 0,
+      "end": 2,
+      "original": "He go",
+      "replacement": "He goes",
+      "category": "grammar",
+      "explanation": "Subject-verb agreement error with third person singular.",
+      "confidence": 1.0
+    }
+  ],
+  "correctedText": "He goes to school."
+}
+[2026-11-27T03:34:50.770Z] REQ#14 sys="You are a writing-assistant analyzer running fully locally o..." user="She don't like it...."
+[2026-11-27T03:34:52.615Z] RES#14 1845ms 331 chars
+[2026-11-27T03:34:52.615Z] FULL#14 
+{
+  "issues": [
+    {
+      "id": "issue-1",
+      "start": 0,
+      "end": 4,
+      "original": "don't",
+      "replacement": "doesn't",
+      "category": "grammar",
+      "explanation": "Third-person singular requires 'doesn't' in standard English",
+      "confidence": 1.0
+    }
+  ],
+  "correctedText": "She doesn't like it."
+}
+[2026-11-27T03:34:52.617Z] REQ#15 sys="You are a writing-assistant analyzer running fully locally o..." user="Hi Sarah, I wanted to follow up on the Q3 roadmap we discussed last week. The te..."
+[2026-11-27T03:34:52.617Z] CACHE#15 identical payload served from shim cache

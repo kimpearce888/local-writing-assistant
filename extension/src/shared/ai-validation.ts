@@ -67,12 +67,70 @@ function asFloat(v: unknown): number | null {
 }
 
 /**
+ * Reconcile model-reported issue offsets against the analyzed text.
+ *
+ * Real models frequently report offsets that drift by a few characters
+ * (leading/trailing whitespace counted in, punctuation off-by-one) even
+ * when the flagged substring itself is correct. The `original` substring
+ * is treated as the source of truth and re-located near the claimed
+ * offsets; an issue is only dropped when the substring genuinely does
+ * not occur anywhere near the claim. This keeps the security contract
+ * intact — an issue can still only reference text that actually exists
+ * in the editor — while making the checker robust with real models
+ * instead of only with perfectly-calibrated ones.
+ */
+export function reconcileIssue(
+  text: string,
+  claimedStart: number,
+  claimedEnd: number,
+  original: string,
+): { start: number; end: number } | null {
+  if (original.length === 0) return null;
+  if (
+    claimedStart >= 0 &&
+    claimedEnd <= text.length &&
+    text.slice(claimedStart, claimedEnd) === original
+  ) {
+    return { start: claimedStart, end: claimedEnd };
+  }
+  const WINDOW = 160;
+  const lo = Math.max(0, claimedStart - WINDOW);
+  const hi = Math.min(text.length, claimedEnd + WINDOW);
+  const haystack = text.slice(lo, hi);
+
+  // Every occurrence (exact first, then case-insensitive), nearest to
+  // the claimed start wins.
+  const candidates: number[] = [];
+  let idx = haystack.indexOf(original);
+  while (idx !== -1) {
+    candidates.push(idx);
+    idx = haystack.indexOf(original, idx + 1);
+  }
+  if (candidates.length === 0) {
+    const lowerHay = haystack.toLowerCase();
+    const lowerOrig = original.toLowerCase();
+    idx = lowerHay.indexOf(lowerOrig);
+    while (idx !== -1) {
+      candidates.push(idx);
+      idx = lowerHay.indexOf(lowerOrig, idx + 1);
+    }
+  }
+  if (candidates.length === 0) return null;
+  const claimedRel = claimedStart - lo;
+  let best = candidates[0];
+  for (const c of candidates) {
+    if (Math.abs(c - claimedRel) < Math.abs(best - claimedRel)) best = c;
+  }
+  return { start: lo + best, end: lo + best + original.length };
+}
+
+/**
  * Parse and validate a grammar-check response.
  *
  * Throws { code: 'INVALID_AI_RESPONSE', detail: string } on any
- * structural problem. Issue offsets that don't match the supplied text
- * are silently dropped (with a console warn) — we don't fail the whole
- * response for one bad issue.
+ * structural problem. Issue offsets that cannot be reconciled with the
+ * supplied text are silently dropped (with a console warn) — we don't
+ * fail the whole response for one bad issue.
  */
 export function parseGrammarResponse(
   raw: string,
@@ -100,8 +158,8 @@ export function parseGrammarResponse(
     if (!isObject(item)) continue;
     const id = asString(item.id) ?? `issue-${i + 1}`;
     if (seenIds.has(id)) continue;
-    const start = asInt(item.start);
-    const end = asInt(item.end);
+    let start = asInt(item.start);
+    let end = asInt(item.end);
     const original = asString(item.original);
     const replacement = asString(item.replacement);
     const category = asString(item.category);
@@ -118,11 +176,16 @@ export function parseGrammarResponse(
       continue;
     }
     if (!VALID_CATEGORIES.has(category)) continue;
-    if (start < 0 || end > analyzedText.length || start >= end) continue;
-    const slice = analyzedText.slice(start, end);
-    if (slice !== original) {
-      // Offsets don't match the original text — drop this issue silently.
-      continue;
+    if (start < 0 || start >= end) continue;
+    if (end > analyzedText.length || analyzedText.slice(start, end) !== original) {
+      // Offsets drifted — re-locate the flagged substring near the claim.
+      const located = reconcileIssue(analyzedText, start, end, original);
+      if (!located) {
+        console.warn(`[lwa] issue ${id}: "${original}" not found near ${start}-${end}; dropped`);
+        continue;
+      }
+      start = located.start;
+      end = located.end;
     }
     if (confidence !== null && (confidence < 0 || confidence > 1)) continue;
 

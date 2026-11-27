@@ -226,12 +226,49 @@ async function openSidePanelForTab(tabId: number): Promise<void> {
   }
 }
 
+/** Last side-panel broadcast, stashed so a COLD side panel can pull it
+ *  once its module graph has loaded. The context-menu flow broadcasts
+ *  the moment the selection arrives, but a freshly created panel has
+ *  not registered its onMessage listener yet — the broadcast is lost
+ *  and the user sees an empty panel. The panel now announces itself
+ *  ("side-panel-ready") on init and consumes the stash (fresh for
+ *  15 s). Found during the real-model E2E session (v1.10.1). */
+let pendingPanelBroadcast: { msg: Record<string, unknown>; ts: number } | null = null;
+const PENDING_PANEL_TTL_MS = 15000;
+
 /* ---------------- Message router ---------------- */
 
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   if (!msg || typeof msg !== "object") return false;
 
+  // Stash side-panel broadcasts so a cold panel can pull them via the
+  // "side-panel-ready" handshake below. Broadcasts from the SW itself
+  // do not loop back here — these arrive from content scripts.
+  if (
+    msg.type === "side-panel-rewrite" ||
+    msg.type === "side-panel-detect-tone-request"
+  ) {
+    pendingPanelBroadcast = { msg: msg as Record<string, unknown>, ts: Date.now() };
+  }
+
   switch (msg.type) {
+    case "side-panel-ready": {
+      // A just-opened panel announces itself; hand over the stashed
+      // broadcast (if fresh) so the selection is not lost to the
+      // open→load race. The stash is NOT consumed here: it expires by
+      // TTL, so multiple panel views each receive the selection.
+      // Synchronous reply.
+      if (
+        pendingPanelBroadcast &&
+        Date.now() - pendingPanelBroadcast.ts < PENDING_PANEL_TTL_MS
+      ) {
+        reply(pendingPanelBroadcast.msg);
+      } else {
+        reply(null);
+      }
+      return false;
+    }
+
     case "popup-status-query":
       handlePopupStatusQuery().then(reply).catch(() => reply(null));
       return true;
@@ -399,6 +436,22 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
           .set({ [SIDE_PANEL_TAB_KEY]: sender.tab.id })
           .catch(() => undefined);
       }
+      // Stash the forwarded payload so a COLD side panel (one whose
+      // module graph has not loaded yet) can pull it via the
+      // "side-panel-ready" handshake on init — the broadcast below is
+      // lost for a panel that is still loading.
+      pendingPanelBroadcast = {
+        msg: {
+          type: "side-panel-rewrite",
+          text: msg.text,
+          editorId: msg.editorId,
+          tabId: sender.tab?.id,
+          start: msg.start,
+          end: msg.end,
+          expectedHash: msg.expectedHash,
+        },
+        ts: Date.now(),
+      };
       chrome.runtime.sendMessage({
         type: "side-panel-rewrite",
         text: msg.text,

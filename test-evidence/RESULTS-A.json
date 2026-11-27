@@ -1,0 +1,172 @@
+{
+  "session": "A",
+  "started": "2026-11-27T03:34:04.955Z",
+  "finished": "2026-11-27T03:34:53.091Z",
+  "aiCallLog": "ai-call-log.txt",
+  "results": [
+    {
+      "id": "A-01",
+      "name": "Extension is installed and enabled in chrome://extensions",
+      "status": "PASS",
+      "detail": "name visible; errors button present=false",
+      "shots": [
+        "A-01-extensions-page.png"
+      ],
+      "error": "",
+      "ms": 2298
+    },
+    {
+      "id": "A-02",
+      "name": "Popup shows REAL Connected status (native host -> shim -> model list + AI ping)",
+      "status": "PASS",
+      "detail": "model=\"—\" suggestions=0",
+      "shots": [
+        "A-02-popup-connected.png"
+      ],
+      "error": "",
+      "ms": 656
+    },
+    {
+      "id": "A-03",
+      "name": "Popup 'Test LM Studio Connection' round-trip",
+      "status": "PASS",
+      "detail": "diag: Connection test passed.",
+      "shots": [
+        "A-03-popup-connection-test.png"
+      ],
+      "error": "",
+      "ms": 102
+    },
+    {
+      "id": "A-04",
+      "name": "Real-time grammar check appears WHILE typing (real AI, per-keystroke)",
+      "status": "PASS",
+      "detail": "1 inline marker(s) after ~4s typing + debounce + AI round-trip",
+      "shots": [
+        "A-04-realtime-markers.png"
+      ],
+      "error": "",
+      "ms": 3820
+    },
+    {
+      "id": "A-05",
+      "name": "Hovering an underlined issue opens the suggestion card",
+      "status": "PASS",
+      "detail": "suggestion card rendered on hover",
+      "shots": [
+        "A-05-hover-card.png"
+      ],
+      "error": "",
+      "ms": 1288
+    },
+    {
+      "id": "A-06",
+      "name": "Suggestion popup Replace button applies the AI fix",
+      "status": "PASS",
+      "detail": "popup content: ×GrammarThird-person singular requires 'doesn't' instead of 'don't'.Replace: She don't↓→ She doesn'tReplace✎ EditIgnore | editor now: \"She doesn't like it.\"",
+      "shots": [
+        "A-06a-suggestion-popup.png",
+        "A-06b-after-replace.png"
+      ],
+      "error": "",
+      "ms": 195
+    },
+    {
+      "id": "A-07",
+      "name": "Offline fast-check underlines local-rule errors instantly (v1.10.0)",
+      "status": "PASS",
+      "detail": "2 markers in 4.6s (local rules: teh + recieved)",
+      "shots": [
+        "A-07-offline-fastcheck.png"
+      ],
+      "error": "",
+      "ms": 4684
+    },
+    {
+      "id": "A-08",
+      "name": "Floating assistant widget docks to the editor",
+      "status": "PASS",
+      "detail": "widget rect {\"found\":true,\"x\":606,\"y\":293,\"w\":40,\"h\":40}",
+      "shots": [
+        "A-08-floating-widget.png"
+      ],
+      "error": "",
+      "ms": 3152
+    },
+    {
+      "id": "A-09",
+      "name": "Content-rich email compose page gets inline checks (contenteditable)",
+      "status": "PASS",
+      "detail": "1 marker(s) on the email draft",
+      "shots": [
+        "A-09-compose-page.png"
+      ],
+      "error": "",
+      "ms": 8388
+    },
+    {
+      "id": "A-10",
+      "name": "Options page: create snippet 'sig' via the form",
+      "status": "PASS",
+      "detail": "snippet list now has 1 item(s)",
+      "shots": [
+        "A-10a-options-snippet-form.png",
+        "A-10b-snippet-saved.png"
+      ],
+      "error": "",
+      "ms": 368
+    },
+    {
+      "id": "A-11",
+      "name": "Native context menu: 'Save selection as snippet' (real X11 right-click)",
+      "status": "PASS",
+      "detail": "options page opened with the selection pre-filled | saved snippet \"addr\" from context-menu selection: \"\"",
+      "shots": [
+        "A-11a-context-menu-1.png",
+        "A-11b-snippet-from-selection.png"
+      ],
+      "error": "",
+      "ms": 7726
+    },
+    {
+      "id": "A-12",
+      "name": "Snippet expansion: typing ';sig' expands to the full signature",
+      "status": "PASS",
+      "detail": "expanded (62 chars): \"Reach me anytime. Best regards, / Alex Kim / Founder, Example Corp...\"",
+      "shots": [
+        "A-12-snippet-expanded.png"
+      ],
+      "error": "",
+      "ms": 632
+    },
+    {
+      "id": "A-13",
+      "name": "Settings persist; Refresh models lists the real model; diagnostics run",
+      "status": "PASS",
+      "detail": "dialect=uk persisted across reload | models: glm-4.6; selected glm-4.6 | diagnostics: [..] Running diagnostics… [PASS] Native host installed [PASS] LM Studio reachable [PASS] /v1/models endpoint [PASS] At least one model available [PASS] Test request succeeded Models: glm-4.6",
+      "shots": [
+        "A-13a-options-models.png",
+        "A-13b-options-diagnostics.png"
+      ],
+      "error": "",
+      "ms": 1434
+    },
+    {
+      "id": "A-14",
+      "name": "Pause on this site suppresses analysis; Resume restores it",
+      "status": "PASS",
+      "detail": "paused: 0 markers while typing an error sentence | resumed: markers are back",
+      "shots": [
+        "A-14a-paused-site.png",
+        "A-14b-resumed-site.png"
+      ],
+      "error": "",
+      "ms": 13046
+    }
+  ],
+  "summary": {
+    "total": 14,
+    "pass": 14,
+    "fail": 0
+  }
+}

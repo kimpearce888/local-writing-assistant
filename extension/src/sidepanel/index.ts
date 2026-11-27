@@ -964,6 +964,11 @@ async function refreshSettings(): Promise<void> {
 
 /* ---------------- Snippet expansion (Grammarly parity) ---------------- */
 
+/** Timestamp of the last user edit inside the working box — lets the
+ *  side-panel-rewrite broadcast guard distinguish active typing from a
+ *  stale, merely-focused box (v1.10.1). */
+let lastBoxEditTs = 0;
+
 /** Snippets cache — loaded at init, refreshed live via storage.onChanged
  *  together with the settings cache. */
 let snippetsCache: Snippet[] = [];
@@ -1016,6 +1021,10 @@ function hookActions(): void {
   // auto-analysis pipeline.
   const selected = $("selectedText") as HTMLTextAreaElement | null;
   selected?.addEventListener("input", () => {
+    // Track active typing so a later page-selection broadcast can tell
+    // "user is mid-sentence in the panel" apart from "box merely holds
+    // focus" (see the side-panel-rewrite handler below).
+    lastBoxEditTs = Date.now();
     // Snippet expansion rewrites the box BEFORE state sync so stats,
     // score and the pending check all see the expanded text.
     if (selected) tryExpandTextareaSnippet(selected);
@@ -1079,58 +1088,89 @@ function hookActions(): void {
   });
 }
 
+/** Shared handler: apply a side-panel-rewrite broadcast (from the live
+ *  onMessage listener OR from the cold-start "side-panel-ready"
+ *  handshake — see the service worker's pendingPanelBroadcast stash). */
+function applySidePanelRewrite(msg: Record<string, unknown>): void {
+  state.text = (msg.text as string) ?? "";
+  state.editorId = msg.editorId as string | undefined;
+  state.tabId = msg.tabId as number | undefined;
+  state.start = msg.start as number | undefined;
+  state.end = msg.end as number | undefined;
+  state.expectedHash = msg.expectedHash as string | undefined;
+  setText($("selectedText") as HTMLElement, state.text);
+  state.rewritten = "";
+  state.lastOp = undefined;
+  setReplaceButtonMode(false);
+  setText($("resultText") as HTMLElement, "");
+  setReplaceEnabled(false, "Run an action first");
+  // New text invalidates the previous issue offsets — refresh the
+  // local pipeline right away.
+  activeIssues = [];
+  renderIssues();
+  setCheckChip("Idle");
+  updateStatsUi();
+  updateScoreUi();
+  schedulePanelCheck();
+}
+
+/** Shared handler: run a tone detection on a provided selection. */
+function applySidePanelToneRequest(msg: Record<string, unknown>): void {
+  state.text = (msg.text as string) ?? "";
+  state.editorId = undefined;
+  state.start = undefined;
+  state.end = undefined;
+  state.expectedHash = undefined;
+  const box = $("selectedText") as HTMLTextAreaElement | null;
+  if (box) box.value = state.text;
+  activateTab("insights");
+  syncWorkingText();
+  activeIssues = [];
+  renderIssues();
+  updateStatsUi();
+  updateScoreUi();
+  void runToneDetect();
+}
+
+/** The working box is user-editable — broadcasts must not clobber text
+ *  the user is ACTIVELY typing there. Focus alone is not enough to
+ *  skip: a box that merely holds focus (the user typed a while ago and
+ *  moved on to the page) must still receive fresh page selections, or
+ *  right-click → "Rewrite…" silently does nothing. Found during the
+ *  real-model E2E session (v1.10.1). */
+function boxActivelyTyping(): boolean {
+  const box = $("selectedText") as HTMLTextAreaElement | null;
+  return !!box && document.activeElement === box && Date.now() - lastBoxEditTs < 2000;
+}
+
 chrome.runtime.onMessage.addListener((msg) => {
   if (!msg || typeof msg !== "object") return;
   if (msg.type === "side-panel-rewrite") {
-    // The working area is editable — do NOT clobber text the user is
-    // actively typing there. A fresh page selection still wins as soon
-    // as the user clicks back into the box-less state (unfocused).
-    const box = $("selectedText") as HTMLTextAreaElement | null;
-    if (box && document.activeElement === box) return;
-    state.text = (msg.text as string) ?? "";
-    state.editorId = msg.editorId as string | undefined;
-    state.tabId = msg.tabId as number | undefined;
-    state.start = msg.start as number | undefined;
-    state.end = msg.end as number | undefined;
-    state.expectedHash = msg.expectedHash as string | undefined;
-    setText($("selectedText") as HTMLElement, state.text);
-    state.rewritten = "";
-    state.lastOp = undefined;
-    setReplaceButtonMode(false);
-    setText($("resultText") as HTMLElement, "");
-    setReplaceEnabled(false, "Run an action first");
-    // New text invalidates the previous issue offsets — refresh the
-    // local pipeline right away.
-    activeIssues = [];
-    renderIssues();
-    setCheckChip("Idle");
-    updateStatsUi();
-    updateScoreUi();
-    schedulePanelCheck();
+    if (boxActivelyTyping()) return;
+    applySidePanelRewrite(msg as Record<string, unknown>);
   }
   if (msg.type === "side-panel-detect-tone-request") {
-    // Context-menu "Detect tone": switch to Insights and run detection
-    // on the provided selection (same focused-box guard as rewrites).
-    const box = $("selectedText") as HTMLTextAreaElement | null;
-    if (box && document.activeElement === box) return;
-    state.text = (msg.text as string) ?? "";
-    state.editorId = undefined;
-    state.start = undefined;
-    state.end = undefined;
-    state.expectedHash = undefined;
-    if (box) box.value = state.text;
-    activateTab("insights");
-    syncWorkingText();
-    activeIssues = [];
-    renderIssues();
-    updateStatsUi();
-    updateScoreUi();
-    void runToneDetect();
+    if (boxActivelyTyping()) return;
+    applySidePanelToneRequest(msg as Record<string, unknown>);
   }
 });
 
 (async function init() {
   hookActions();
+  // Cold-start handshake: announce to the service worker and pull any
+  // side-panel broadcast that fired while this panel was still loading
+  // (right-click → "Rewrite…" on a not-yet-open panel). Without this
+  // the first Rewrite on a cold panel silently produced an empty panel.
+  try {
+    const pending = await chrome.runtime.sendMessage({ type: "side-panel-ready" });
+    if (pending && typeof pending === "object") {
+      const m = pending as Record<string, unknown>;
+      if (m.type === "side-panel-rewrite") applySidePanelRewrite(m);
+      if (m.type === "side-panel-detect-tone-request") applySidePanelToneRequest(m);
+    }
+  } catch {
+    // SW unavailable — ignore; live broadcasts still work.
+  }
   activateTab("check");
   updateStatsUi();
   updateScoreUi();

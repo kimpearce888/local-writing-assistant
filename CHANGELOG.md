@@ -4,6 +4,30 @@ All notable changes to Local Writing Assistant are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 1.10.1 — real-model robustness + cold-panel delivery (E2E-found)
+
+Found during the human-like end-to-end session against a REAL model
+(real Chromium, real native messaging host, LM Studio-compatible AI shim
+backed by a live LLM — see `test-evidence/` and `test-lab/`):
+
+- **fix(checker): reconcile drifted AI issue offsets.** Real models
+  frequently report start/end that drift a few characters from the flagged
+  substring; the strict slice check silently dropped every issue, so no
+  inline highlights ever appeared with real AI (the deterministic test
+  mock, with perfect offsets, masked the problem completely). The flagged
+  substring is now re-located near the claimed offsets (case-insensitive
+  fallback, nearest occurrence wins) — an issue can still only reference
+  text that exists in the editor. (+9 unit tests)
+- **fix(side-panel):** the side-panel-rewrite broadcast no longer clobbers
+  the working box on mere FOCUS (only while actively typing), and cold
+  panels now pull the stashed selection via a `side-panel-ready`
+  handshake — previously the first right-click → "Rewrite…" on a
+  not-yet-loaded panel silently produced an empty panel.
+- **test-lab:** human-like E2E harness — real X11 input for Chrome's
+  native context menus (type-ahead navigation + leak probes), full-screen
+  captures, and an AI call-log proof. 24-step evidence run in
+  `test-evidence/`.
+
 ## [1.10.0] — 2026-11-27
 
 ### Added

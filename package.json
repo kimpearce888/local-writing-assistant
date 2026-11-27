@@ -1,6 +1,6 @@
 {
   "name": "local-writing-assistant",
-  "version": "1.10.0",
+  "version": "1.10.1",
   "private": true,
   "type": "module",
   "description": "Fully local AI writing assistant — Chrome extension + native host + Windows + Linux installer.",
