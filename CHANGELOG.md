@@ -4,7 +4,7 @@ All notable changes to Local Writing Assistant are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased — GAADS re-audit of v1.10.0/v1.10.1 additions
+## [1.10.1] — 2026-11-27 — production release (GAADS re-audit, human-like E2E evidence, packaged artifacts)
 
 Re-audited everything added since the previous GAADS audit (v1.8/v1.9)
 against the Global AI Agent Development Standard:
@@ -38,8 +38,17 @@ against the Global AI Agent Development Standard:
 - Honest remainder: the `enableLocalChecks` setting itself (types/storage/
   Options UI) would be scoped separately in a full feature removal; the
   removal probe documents this explicitly.
+- **Production packaging:** with a Go 1.24 toolchain available the native
+  host was built and cross-checked for both platforms (`go test` on the
+  `lmstudio`, `protocol`, `security` packages + the integration suite all
+  PASS). `npm run package` produced the Windows/Linux installer ZIPs plus
+  a Chrome Web Store-ready extension ZIP (manifest at archive root), with
+  `SHA256SUMS.txt` alongside — see `docs/RELEASE-1.10.1.md`. The CRX3
+  packager stays optional: it requires a per-developer private key that
+  is deliberately not committed.
+- **Tag:** `v1.10.1` (first tag since `v1.9.0`).
 
-## 1.10.1 — real-model robustness + cold-panel delivery (E2E-found)
+### Code fixes included in this release (found by human-like E2E)
 
 Found during the human-like end-to-end session against a REAL model
 (real Chromium, real native messaging host, LM Studio-compatible AI shim

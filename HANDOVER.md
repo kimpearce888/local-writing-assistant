@@ -111,22 +111,27 @@ Live browser check (what was done in this session):
 ## 4. Current git state
 
 - Branch `main`, working tree **clean** (0 modified files).
-- Latest commits: `161fe4e` (24/24 human-like E2E evidence run),
-  `722869c` (v1.10.1 real-model fixes found BY that run),
-  `50e3342` (v1.10.0 offline fast-check), `a3b1c19` (GAADS re-audit of
-  v1.8/v1.9 + snippets export/import), … earlier audit-fix commits.
-- Pushed to `origin/main` on GitHub. Tags: up to `v1.9.0` (v1.10.x not yet tagged).
-- Verification commands: see `CHANGELOG.md` Unreleased section and
+- Latest commits: the v1.10.1 production-release commit, on top of
+  `b509235` (executable removability probe, 7/7), `161fe4e` (24/24
+  human-like E2E evidence run), `722869c` (v1.10.1 real-model fixes
+  found BY that run), `50e3342` (v1.10.0 offline fast-check).
+- Tag `v1.10.1` created at the release commit.
+- `origin/main` last confirmed pushed through `161fe4e`; later commits
+  are LOCAL-ONLY because the sandbox lost git credentials (recycle).
+  Push with `git push origin main --tags` once credentials exist.
+- Verification commands: see `CHANGELOG.md` section `[1.10.1]` and
   `test-evidence/E2E-REPORT.md`; the E2E harness itself lives in `test-lab/`
   (single-call foreground design — it needs Xvfb + the AI shim alive in the
   same shell invocation; see test-lab/session-*.cjs headers).
 
 ## 5. Known open items / decisions left for the next session
 
-- **v1.10.x not tagged/released yet** — tag v1.10.1 after the next review.
+- ~~v1.10.x not tagged/released yet~~ — RESOLVED: `v1.10.1` tagged;
+  Windows/Linux installer ZIPs + CWS extension ZIP built with
+  `SHA256SUMS.txt` (see `docs/RELEASE-1.10.1.md`).
 - **Ollama backend**: config field exists, client path untested against a live Ollama (only LM Studio-shaped backends were exercised — mock and real). Low risk, same OpenAI-compatible shape.
 - **Windows/Linux host install scripts** exist but were only exercised on this Linux box.
-- **Release packaging exists** (CRX3 pipeline + zip packaging + CI jobs, repaired in v1.5.x era); store-listing assets are still not drafted.
+- **Release packaging exists** (CRX3 pipeline + zip packaging + CI jobs, repaired in v1.5.x era). Store-listing TEXT drafted in `docs/STORE-LISTING.md`; store screenshots/graphics are still not produced.
 - **Removal probe covers only `shared/local-check.ts`** — future leaf modules should extend `scripts/removal-probe.cjs` (table-driven by design).
 - The AI shim (`/v1/chat/completions` over z-ai-web-dev-sdk) is test-only; don't ship it as a feature.
 
