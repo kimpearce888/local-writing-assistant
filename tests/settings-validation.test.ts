@@ -88,4 +88,24 @@ describe("validateSettings", () => {
     const out = validateSettings({ model: "x".repeat(500) });
     expect((out.model as string).length).toBe(200);
   });
+
+  it("coerces enableSnippets strictly (snippets lifecycle safety)", () => {
+    expect(validateSettings({ enableSnippets: false })).toEqual({ enableSnippets: false });
+    expect(validateSettings({ enableSnippets: "off" })).toEqual({ enableSnippets: true });
+    // Disabling is a boolean gate only — data is never touched here.
+  });
+
+  it("sanitizes snippetTriggerPrefix (0-3 chars, whitespace stripped)", () => {
+    expect(validateSettings({ snippetTriggerPrefix: ";" })).toEqual({ snippetTriggerPrefix: ";" });
+    expect(validateSettings({ snippetTriggerPrefix: "@@" })).toEqual({ snippetTriggerPrefix: "@@" });
+    expect(validateSettings({ snippetTriggerPrefix: "" })).toEqual({ snippetTriggerPrefix: "" });
+    expect(validateSettings({ snippetTriggerPrefix: ";;;" })).toEqual({ snippetTriggerPrefix: ";;;" });
+    // Over-long prefixes are sliced to 3 chars.
+    expect(validateSettings({ snippetTriggerPrefix: ";;;;;" })).toEqual({ snippetTriggerPrefix: ";;;" });
+    // Whitespace cannot survive — the prefix must be typeable as a tight run.
+    expect(validateSettings({ snippetTriggerPrefix: "a b" })).toEqual({ snippetTriggerPrefix: "ab" });
+    expect(validateSettings({ snippetTriggerPrefix: "   " })).toEqual({ snippetTriggerPrefix: "" });
+    // Non-strings fall back to the default ";".
+    expect(validateSettings({ snippetTriggerPrefix: 42 })).toEqual({ snippetTriggerPrefix: ";" });
+  });
 });

@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Added
+- **Snippets export/import** (Options → Snippets): download all snippets as `snippets.json`, import from file — every entry re-validated through the same sanitization gate as manual adds; invalid entries are skipped with a count. Brings snippets to the same data-lifecycle standard as the custom dictionary (GAADS section 8: retention, export, safe round-trip).
+- Settings validation tests for the snippets fields (`enableSnippets` strict boolean coercion, `snippetTriggerPrefix` 0–3 chars + whitespace stripping). 146 unit tests total.
+
 ## [1.9.0] — 2026-11-26
 
 ### Added

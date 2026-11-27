@@ -328,6 +328,32 @@ function hookControls(): void {
     await clearSnippets();
     await refreshSnippets();
   });
+  ($("exportSnippets") as HTMLElement).addEventListener("click", async () => {
+    const items = await getSnippets();
+    downloadJson("snippets.json", items);
+  });
+  ($("importSnippets") as HTMLElement).addEventListener("click", () => {
+    pickFile(async (text) => {
+      try {
+        const arr = JSON.parse(text);
+        if (!Array.isArray(arr)) {
+          alert("Import failed: expected a JSON array of snippets.");
+          return;
+        }
+        let added = 0;
+        for (const item of arr) {
+          if (typeof item !== "object" || item === null) continue;
+          const rec = item as Record<string, unknown>;
+          const res = await addSnippet(rec.shortcut, rec.content, rec.label);
+          if (res.ok) added += 1;
+        }
+        await refreshSnippets();
+        alert(`Imported ${added} snippet(s); invalid or duplicate-shortcut entries were skipped.`);
+      } catch (e) {
+        alert(`Import failed: ${(e as Error).message || "invalid JSON"}`);
+      }
+    });
+  });
   ($("snippetTriggerPrefix") as HTMLElement)?.addEventListener("input", updateSnippetPrefixPreview);
   ($("exportDict") as HTMLElement).addEventListener("click", async () => {
     const words = await getDictionary();
