@@ -1,4 +1,4 @@
-# HANDOVER — Local Writing Assistant (full state as of 2026-11-24)
+# HANDOVER — Local Writing Assistant (full state as of 2026-11-27)
 
 > Read this first. It captures everything discovered, fixed, verified, and left open
 > in the audit/fix session for `https://github.com/kimpearce888/local-writing-assistant`.
@@ -9,9 +9,21 @@ The repo is a **Chrome MV3 extension + Go native-messaging host** that sends sel
 text to a local LM Studio (or Ollama) endpoint for rewrite/continue/explain/summarize.
 The original code was mostly *offered but never built or broken*: every feature had at
 least one real bug. All of them were found by end-to-end human-style testing, fixed,
-unit-tested, and verified through the real browser (CDP) against a mock LM Studio.
-**Everything now works.** The tree is clean, all tests pass, and the work is committed
-and pushed to GitHub (`main`).
+unit-tested, and verified in a real browser. Current state (v1.10.1):
+
+- feature-complete writing surface (inline checks, side panel with
+  Check/Insights/Rewrite/Write/Evaluate tabs, snippets with export/import,
+  offline fast-check rule engine, pause/resume, sensitive-field protection);
+- **24/24 human-like E2E scenarios PASSED against a REAL LLM** (real Chromium,
+  real X11 input for native context menus, real native-messaging host,
+  LM Studio-compatible shim backed by a live model) — harness in `test-lab/`,
+  screenshots + AI call logs in `test-evidence/`, report in
+  `test-evidence/E2E-REPORT.md`;
+- GAADS-audited twice (v1.8/v1.9 additions, then v1.10.x additions) with a
+  new executable removability probe (`npm run test:removal`, 7/7 PASS);
+- 208 unit tests green, CI enforces typecheck/tests/audits/e2e on every push.
+
+The tree is clean, and the work is committed and pushed to GitHub (`main`).
 
 ## 1. Where things are
 
@@ -99,17 +111,24 @@ Live browser check (what was done in this session):
 ## 4. Current git state
 
 - Branch `main`, working tree **clean** (0 modified files).
-- Latest commits: `580905c` (AI key-name aliases + plain-text fallback),
-  `484a2ed` (textarea/contenteditable selection fix), … earlier audit-fix commits.
-- Pushed to `origin/main` on GitHub. Tags: `v1.7.0`, `v1.7.1`.
+- Latest commits: `161fe4e` (24/24 human-like E2E evidence run),
+  `722869c` (v1.10.1 real-model fixes found BY that run),
+  `50e3342` (v1.10.0 offline fast-check), `a3b1c19` (GAADS re-audit of
+  v1.8/v1.9 + snippets export/import), … earlier audit-fix commits.
+- Pushed to `origin/main` on GitHub. Tags: up to `v1.9.0` (v1.10.x not yet tagged).
+- Verification commands: see `CHANGELOG.md` Unreleased section and
+  `test-evidence/E2E-REPORT.md`; the E2E harness itself lives in `test-lab/`
+  (single-call foreground design — it needs Xvfb + the AI shim alive in the
+  same shell invocation; see test-lab/session-*.cjs headers).
 
 ## 5. Known open items / decisions left for the next session
 
-- **No release packaging** (.crx/zip, store listing) — decide scope.
-- **Ollama backend**: config field exists, client path untested against a live Ollama (only mock LM Studio was available). Low risk, same OpenAI-compatible shape.
+- **v1.10.x not tagged/released yet** — tag v1.10.1 after the next review.
+- **Ollama backend**: config field exists, client path untested against a live Ollama (only LM Studio-shaped backends were exercised — mock and real). Low risk, same OpenAI-compatible shape.
 - **Windows/Linux host install scripts** exist but were only exercised on this Linux box.
-- Consider: CI (go test + npm build), and a `Makefile` target that rebuilds binary + dist together so they can't drift again.
-- The mock server is test-only; don't ship it as a feature.
+- **Release packaging exists** (CRX3 pipeline + zip packaging + CI jobs, repaired in v1.5.x era); store-listing assets are still not drafted.
+- **Removal probe covers only `shared/local-check.ts`** — future leaf modules should extend `scripts/removal-probe.cjs` (table-driven by design).
+- The AI shim (`/v1/chat/completions` over z-ai-web-dev-sdk) is test-only; don't ship it as a feature.
 
 ## 6. Ground rules used in this session (keep them)
 

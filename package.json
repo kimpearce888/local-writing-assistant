@@ -14,6 +14,7 @@
     "test:native": "cd native-host && go test ./...",
     "test:integration": "cd tests && go test -v ./...",
     "test:e2e": "npx playwright test --reporter=list",
+    "test:removal": "node scripts/removal-probe.cjs",
     "test": "npm run test:unit && npm run test:native && npm run test:integration",
     "typecheck": "cd extension && npm run typecheck",
     "typecheck:tests": "cd extension && npx tsc -p ../tsconfig.test.json --noEmit",

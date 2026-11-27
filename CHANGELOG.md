@@ -4,6 +4,41 @@ All notable changes to Local Writing Assistant are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased — GAADS re-audit of v1.10.0/v1.10.1 additions
+
+Re-audited everything added since the previous GAADS audit (v1.8/v1.9)
+against the Global AI Agent Development Standard:
+
+- **Section 3/4 (module qualities, dependency rules):** `local-check.ts`
+  is a pure leaf exactly like `snippets.ts` — no chrome APIs, no DOM, no
+  network (verified by scan); consumed contract-only by its two declared
+  dependents (`content/suggestion-engine.ts`, `background/service-worker.ts`).
+  `ai-validation.ts` gained `reconcileIssue()` as an exported pure function
+  exercised through `parseGrammarResponse` (+ direct tests). madge cycle
+  scan over `extension/src` (30 files): no circular dependencies.
+- **Section 6 (enforce, do not merely describe):** re-ran everything the
+  CI pipeline runs — 208/208 unit tests, `typecheck`, `typecheck:tests`,
+  production extension build, network audit (78 files PASS), security
+  audit (182 files PASS). NEW: `npm run test:removal`
+  (`scripts/removal-probe.cjs`) turns the previously manual removability
+  review into executable enforcement — it deletes `local-check.ts` and its
+  module-owned tests inside a disposable git worktree, excises ONLY its
+  two declared consumers, and proves typecheck + production build + the
+  remaining 156 tests still pass, then scans for stale references.
+  7/7 checks pass: the offline fast-check module is removal-safe.
+- **Section 7 (truthful reporting):** the 24/24 human-like E2E evidence
+  run (`test-evidence/`, real Chromium + real X11 input + live LLM)
+  verifies actual runtime behavior for the v1.10.x features.
+- **Section 8 (data & lifecycle safety):** `enableLocalChecks` is enforced
+  at the authoritative boundary in BOTH consumers (the engine refuses to
+  produce issues when disabled — not just a hidden toggle) and disabling
+  it never touches stored data (custom dictionary and ignored words are
+  independent settings, covered by disabled-state tests). The cold-panel
+  broadcast stash is memory-only with a 15s TTL — nothing persisted.
+- Honest remainder: the `enableLocalChecks` setting itself (types/storage/
+  Options UI) would be scoped separately in a full feature removal; the
+  removal probe documents this explicitly.
+
 ## 1.10.1 — real-model robustness + cold-panel delivery (E2E-found)
 
 Found during the human-like end-to-end session against a REAL model
