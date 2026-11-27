@@ -116,9 +116,8 @@ Live browser check (what was done in this session):
   human-like E2E evidence run), `722869c` (v1.10.1 real-model fixes
   found BY that run), `50e3342` (v1.10.0 offline fast-check).
 - Tag `v1.10.1` created at the release commit.
-- `origin/main` last confirmed pushed through `161fe4e`; later commits
-  are LOCAL-ONLY because the sandbox lost git credentials (recycle).
-  Push with `git push origin main --tags` once credentials exist.
+- Pushed: `origin/main` through `b0a2eff` and tag `v1.10.1` (credentials
+  were restored in the sandbox before this session ended).
 - Verification commands: see `CHANGELOG.md` section `[1.10.1]` and
   `test-evidence/E2E-REPORT.md`; the E2E harness itself lives in `test-lab/`
   (single-call foreground design — it needs Xvfb + the AI shim alive in the

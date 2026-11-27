@@ -64,5 +64,5 @@ Reproduce with: `npm run build:extension && npm run build:native && npm run buil
   LM Studio path, but not exercised against a live Ollama.
 - **Windows installers** — exercised on Linux only (script review +
   cross-compiled EXE); no Windows machine in this environment.
-- **Push/tag publishing** — `v1.10.1` tag and the release commit are
-  local until git credentials are restored in the sandbox.
+- **Push/tag publishing** — DONE: `origin/main` is at the release commit
+  (`b0a2eff`) and tag `v1.10.1` is published on GitHub.
