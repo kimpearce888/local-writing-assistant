@@ -77,14 +77,16 @@ the options page at your local model endpoint.
   no data used for credit/lending decisions. Remote code is not used
   (MV3 locked CSP, verified by the repo's `npm run audit:security`).
 
-## Required screenshots (to produce)
+## Screenshots (PRODUCED — `test-evidence/store/`, all exactly 1280×800)
 
-1. 1280×800 — side panel rewriting a paragraph in a web editor.
-2. 1280×800 — inline underline suggestions appearing after typing pause.
-3. 1280×800 — options page (endpoint config + snippets manager).
-4. 1280×800 — right-click context menu with assistant items.
-5. Small promo tile 440×280 and marquee 1400×560 (optional but
-   recommended).
+1. `store-1-sidepanel-rewrite.png` — the rewrite side panel with a REAL
+   AI result (genuine capture from the 24/24 evidence campaign,
+   presented on a neutral backdrop).
+2. `store-2-inline-underlines.png` — inline underline suggestions in a
+   live editor (offline fast-check + AI merge).
+3. `store-3-options-page.png` — options page (endpoint config +
+   snippets manager).
+4. `store-4-context-menu.png` — the native context menu with the Local
+   Writing Assistant submenu over a selection, side panel docked.
 
-The human-like E2E evidence run (`test-evidence/`) already contains
-full-screen captures of flows 1 and 4 that can be re-shot at 1280×800.
+Small promo tile 440×280 and marquee 1400×560 are still not produced.

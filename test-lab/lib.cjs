@@ -114,7 +114,7 @@ async function launchSession({ userDataDir } = {}) {
       "--no-default-browser-check",
       "--disable-features=Translate",
       "--window-position=0,0",
-      "--window-size=1280,1000",
+      `--window-size=${process.env.LWA_WIN || "1280,1000"}`,
       "--force-device-scale-factor=1",
     ],
     viewport: null,
@@ -300,7 +300,7 @@ async function humanType(page, selector, text, delay = 25) {
  *  selection, then activate the submenu item whose first letter matches
  *  `itemChar` ("s" = Save selection as snippet, "r" = Rewrite…). */
 const MENU_HEIGHT = 490;
-const SCREEN_H = 1024;
+const SCREEN_H = Number(process.env.LWA_SCREEN_H || "1024");
 
 function xdiff(a, b, x, y, w, h) {
   const out = execFileSync(

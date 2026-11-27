@@ -125,14 +125,23 @@ Live browser check (what was done in this session):
 
 ## 5. Known open items / decisions left for the next session
 
-- ~~v1.10.x not tagged/released yet~~ — RESOLVED: `v1.10.1` tagged;
-  Windows/Linux installer ZIPs + CWS extension ZIP built with
-  `SHA256SUMS.txt` (see `docs/RELEASE-1.10.1.md`).
-- **Ollama backend**: config field exists, client path untested against a live Ollama (only LM Studio-shaped backends were exercised — mock and real). Low risk, same OpenAI-compatible shape.
+- ~~Store-listing assets not drafted~~ — RESOLVED: listing text in
+  `docs/STORE-LISTING.md`; 4 × 1280×800 screenshots in
+  `test-evidence/store/` (provenance in the CHANGELOG Unreleased
+  section). Promo tiles (440×280 / 1400×560) are still not produced.
+- ~~Removal probe covers only `shared/local-check.ts`~~ — RESOLVED: the
+  table-driven probe now covers `local-check` + `snippets` (14/14;
+  future leaf modules: append to `MODULES` in `scripts/removal-probe.cjs`).
+- ~~Ollama backend untested~~ — RESOLVED at wire level
+  (`ollama_compat_test.go` passes against an Ollama-shaped endpoint);
+  exercising a LIVE Ollama install stays a deployment-time check.
 - **Windows/Linux host install scripts** exist but were only exercised on this Linux box.
-- **Release packaging exists** (CRX3 pipeline + zip packaging + CI jobs, repaired in v1.5.x era). Store-listing TEXT drafted in `docs/STORE-LISTING.md`; store screenshots/graphics are still not produced.
-- **Removal probe covers only `shared/local-check.ts`** — future leaf modules should extend `scripts/removal-probe.cjs` (table-driven by design).
+- **CRX3 packager** — verified end-to-end (`npm run verify:crx`, 8/8)
+  with a throwaway key; real distribution needs the developer's own key
+  (`.keys/extension.pem`, gitignored) and `scripts/embed-public-key.sh`.
 - The AI shim (`/v1/chat/completions` over z-ai-web-dev-sdk) is test-only; don't ship it as a feature.
+- The upstream LLM API can 429 under burst — the shim retries 3× then
+  fails honestly; heavy AI-heavy runs (store shots) may need a cooldown.
 
 ## 6. Ground rules used in this session (keep them)
 

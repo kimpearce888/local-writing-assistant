@@ -52,17 +52,16 @@ Reproduce with: `npm run build:extension && npm run build:native && npm run buil
   goes through the local native host to the user's own LM endpoint.
 - Version parity: `package.json` = `manifest.json` = `1.10.1`.
 
-## 4. What remains open (honest remainder)
+## 4. What remains open (honest remainder — updated post-release; see CHANGELOG "Unreleased" for the completed items)
 
-- **Store screenshots/graphics** — listing text is drafted
-  (`docs/STORE-LISTING.md`), images are not produced yet.
-- **CRX artifact** — deliberately not built: `scripts/build-crx.cjs`
-  needs a per-developer private key (`.keys/extension.pem`, gitignored).
-  Self-hosted distribution uses the platform ZIPs; store distribution
-  uses the CWS zip.
-- **Ollama backend** — same OpenAI-compatible shape as the tested
-  LM Studio path, but not exercised against a live Ollama.
+- ~~Store screenshots/graphics~~ — RESOLVED for the 4 required
+  screenshots (`test-evidence/store/`, 1280×800); promo tiles (440×280 /
+  1400×560) still pending.
+- ~~CRX artifact~~ — pipeline smoke-verified (`npm run verify:crx`, 8/8)
+  with a throwaway key; real distribution needs the developer's own key.
+- ~~Ollama backend~~ — wire format verified (`ollama_compat_test.go`);
+  a live Ollama install remains the deployment-time check.
 - **Windows installers** — exercised on Linux only (script review +
   cross-compiled EXE); no Windows machine in this environment.
-- **Push/tag publishing** — DONE: `origin/main` is at the release commit
-  (`b0a2eff`) and tag `v1.10.1` is published on GitHub.
+- ~~Push/tag publishing~~ — DONE: `origin/main` is at the release commit
+  and tag `v1.10.1` is published on GitHub.

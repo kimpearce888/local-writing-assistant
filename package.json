@@ -10,6 +10,7 @@
     "build:native:linux": "cd native-host && CGO_ENABLED=0 go build -ldflags='-s -w' -o build/LocalWritingAssistantHost ./cmd/localwritingassistanthost",
     "build:native:all": "npm run build:native && npm run build:native:linux",
     "build:crx": "node scripts/build-crx.cjs",
+    "verify:crx": "node scripts/verify-crx.cjs",
     "test:unit": "npx vitest run",
     "test:native": "cd native-host && go test ./...",
     "test:integration": "cd tests && go test -v ./...",

@@ -4,6 +4,46 @@ All notable changes to Local Writing Assistant are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased — closing the deferred items (post-v1.10.1)
+
+Everything previously marked "open/skipped/deferred" that could be
+completed in this environment:
+
+- **Store screenshots produced** (`test-evidence/store/`, 4 × exactly
+  1280×800): inline underlines, the options page, the full context menu
+  with the Local Writing Assistant submenu over a selection (live
+  captures via the E2E harness in the calibrated 1280×1000 geometry,
+  cropped to the CWS size), and the side-panel rewrite (the genuine
+  real-AI capture from the 24/24 campaign, `B-08b`, presented on a
+  neutral backdrop). New harness pieces: `test-lab/store-shots.cjs`,
+  `compose-shot1.py`. Along the way the harness recorded two REAL
+  environment lessons, now documented in code: browser keyboard
+  shortcuts need a real X click first (`evaluate()` focus is not enough
+  — measured selection length 0 vs 304), and the full edit menu + its
+  submenu only anchors correctly in a ≥1000px-tall window (an 800px
+  window re-anchors a broken menu without the extension rows).
+- **Removal probe extended to a second leaf module** — `shared/snippets.ts`
+  joins `shared/local-check.ts` in the now table-driven probe
+  (`scripts/removal-probe.cjs`). Extending it surfaced a REAL declaration
+  gap: `shared/storage.ts` also consumes snippets (validation helpers) —
+  the probe now declares all three consumers and proves removal-safety
+  via typecheck + production build + the remaining 192 unit tests + a
+  stale-reference scan. **14/14 checks pass across both modules.**
+- **Ollama wire-format verified** — the "Ollama path untested" item is
+  closed at the level this suite can honestly prove: a new Go test
+  (`native-host/internal/lmstudio/ollama_compat_test.go`) mimics Ollama's
+  OpenAI-compat layer quirks (tagged model ids like `llama3.2:latest`,
+  chat responses without `created`/`usage`, `X-Ollama-Server-Version`
+  header) and passes `ListModels`/`ChatCompletion`/`Ping` unchanged. A
+  live Ollama install remains the deployment-time check.
+- **CRX3 pipeline smoke-verified** — `npm run build:crx` with a throwaway
+  key, plus a NEW independent verifier (`scripts/verify-crx.cjs`, wired
+  as `npm run verify:crx`) that re-parses the produced `.crx` from disk:
+  framing, protobuf proof fields, RSA-SHA256 signature over
+  "CRX3 SignedData", CRX-id derivation (mismatch vs the manifest-pinned
+  id honestly reported as EXPECTED for a throwaway key), and inner
+  archive manifest-version parity. **8/8 checks pass.**
+
 ## [1.10.1] — 2026-11-27 — production release (GAADS re-audit, human-like E2E evidence, packaged artifacts)
 
 Re-audited everything added since the previous GAADS audit (v1.8/v1.9)
